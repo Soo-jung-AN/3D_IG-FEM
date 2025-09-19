@@ -1,6 +1,11 @@
 # 3D_IG-FEM
 3-dimensional IG-FEM
 
+<img width="1353" height="1250" alt="Image" src="https://github.com/user-attachments/assets/71644e9b-10cc-46df-9956-970df1b96dbe" />
+
+
+
+
 3D Delanauy triangulation is required to generate vtu mesh domain (e.g., tetrahedrone.vtu in the "main.py") using an open source visualization software, Paraview (https://www.paraview.org/).
 
 3D mass matrix inversion of sparse linear system is conducted via Intel MKL Pardiso direct solver library, PyPardiso (https://pypi.org/project/pypardiso/).
