@@ -224,7 +224,14 @@ E31 = E13
 E32 = E23
 
 # Green Lagrangian Strain tensor , Volumetric tensor
-vol = (F11 * (F22 * F33 - F23 * F32) - F12 * (F21 * F33 - F23 * F31) + F13 * (F21 * F32 - F22 * F31)) - 1
+# F11..F33 are the displacement gradient H = du/dX (confirmed by the E-tensor
+# formulas above, which are 0.5*(H + H^T + H^T H) written in H-components).
+# The true deformation gradient is therefore I + H, so the Jacobian / dilatation
+# is det(I + H) - 1, not det(H) - 1 -- add 1 to the diagonal terms before the
+# determinant, otherwise vol is systematically offset by about -1 for every
+# particle regardless of actual strain.
+f11p1, f22p1, f33p1 = F11 + 1, F22 + 1, F33 + 1
+vol = (f11p1 * (f22p1 * f33p1 - F23 * F32) - F12 * (F21 * f33p1 - F23 * F31) + F13 * (F21 * F32 - f22p1 * F31)) - 1
 tr = (E11 + E22 + E33) / 3
 distot = 0.5 * (((E11 - tr) * (E22 - tr) * (E33 - tr)) - E21**2 - E32**2 - E31**2)
 
