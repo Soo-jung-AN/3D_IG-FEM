@@ -164,6 +164,15 @@ def R_assembly_3D(SC_mat_e, ele_id, init_pos, PQ_detJ_e, R_vec, p_num):
                 J = J_e[k]
                 Ni_with_gp = c1 + c2*P + c3*Q + c4*R
                 N += 1/4 * Ni_with_gp * J
+            # R_vec bakes the reference "+1" into the solved deformation
+            # gradient's DIAGONAL terms only (F11, F22, F33 -- blocks 0, 4, 8
+            # in the 9-block unpacking order F11,F12,F13,F21,F22,F23,F31,F32,F33
+            # used in main.py), matching the 2D IG-FEM reference implementation
+            # (Assembly.py's R_assembly, which targets its F11/F22 diagonal
+            # blocks 0 and 1). The previous blocks 0,1,2 mixed one diagonal
+            # term (F11) with two off-diagonal ones (F12, F13) and left F22/F33
+            # uncorrected, leaving the solved F un-physical (see the vol/E fix
+            # in main.py).
             R_vec[row] += N
-            R_vec[row + p_num] += N
-            R_vec[row + 2 * p_num] += N
+            R_vec[row + 4 * p_num] += N
+            R_vec[row + 8 * p_num] += N
