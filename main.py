@@ -7,12 +7,13 @@ from scipy.spatial import Delaunay
 import numpy.linalg as lina
 from Assembly3 import M_assembly_3D, A_assembly_3D, R_assembly_3D
 from preprocessing3 import reshape_3D, Get_shf_coef_3D, Get_gp_cood_3D, remove_unused_nodes
+from rock_physics import synthesize_vpvs
 from scipy import sparse
 from pypardiso import spsolve
 import vtk
 np.set_printoptions(precision=10, threshold=20000000, linewidth=20000000)
 ############################################################################################################################################################
-def VTKUnstructuredConverter2(points, rad, E11, E22, E33, E12, E13, E23, vol, distot, stresses, DynStress, Z_disp, components):
+def VTKUnstructuredConverter2(points, rad, E11, E22, E33, E12, E13, E23, vol, distot, stresses, DynStress, Z_disp, components, phi_synth, Vp_synth, Vs_synth, VpVs_synth):
     num_points = points.shape[0]
     lines = []
     lines.append('# vtk DataFile Version 2.0\n')
@@ -102,7 +103,27 @@ def VTKUnstructuredConverter2(points, rad, E11, E22, E33, E12, E13, E23, vol, di
     components_flat = components.ravel()
     lines.append('\n'.join(map(str, components_flat)) + '\n')
 
-    
+    lines.append('SCALARS phi_synth float 1\n')
+    lines.append('LOOKUP_TABLE default\n')
+    phi_synth_flat = phi_synth.ravel()
+    lines.append('\n'.join(map(str, phi_synth_flat)) + '\n')
+
+    lines.append('SCALARS Vp_synth float 1\n')
+    lines.append('LOOKUP_TABLE default\n')
+    Vp_synth_flat = Vp_synth.ravel()
+    lines.append('\n'.join(map(str, Vp_synth_flat)) + '\n')
+
+    lines.append('SCALARS Vs_synth float 1\n')
+    lines.append('LOOKUP_TABLE default\n')
+    Vs_synth_flat = Vs_synth.ravel()
+    lines.append('\n'.join(map(str, Vs_synth_flat)) + '\n')
+
+    lines.append('SCALARS VpVs_synth float 1\n')
+    lines.append('LOOKUP_TABLE default\n')
+    VpVs_synth_flat = VpVs_synth.ravel()
+    lines.append('\n'.join(map(str, VpVs_synth_flat)) + '\n')
+
+
     with open("./results/80-3.vtk", 'w') as outFile:
         outFile.writelines(lines)
     print("vtkGenerationisDone")
@@ -256,6 +277,37 @@ for i in range(p_num):
     if 30e3 < xx < 120e3 and zz<-13e3:
        components[i]=9
 
+##########################
+# Synthetic Vp/Vs from DEM finite volumetric strain, following
+# Botter et al. (2014, Marine and Petroleum Geology 57, 187-207), Eqs. 1-4.
+# `vol` (= det(F) - 1) computed above is exactly the volumetric strain
+# (dilatation) used by that workflow. phi_ini / Vp_ini below are example
+# reference (undeformed) properties per depth zone -- reusing the same
+# grain densities already assumed for the DynStress calculation above --
+# and should be calibrated to the actual DEM materials, the same way
+# Botter et al. calibrated their sandstone/shale properties (their Table 3).
+phi_ini_arr = np.zeros(p_num)
+rho_g_arr = np.zeros(p_num)
+Vp_ini_arr = np.zeros(p_num)   # km/s
+
+zone1 = (Zpos >= -15e3) & (Zpos < -11e3)
+zone2 = (Zpos >= -11e3) & (Zpos < -7e3)
+zone3 = (Zpos >= -7e3) & (Zpos < 0)
+zone4 = (Zpos >= -15e3) & (Zpos < -13e3) & (Xpos >= 30e3) & (Xpos <= 120e3)
+
+rho_g_arr[zone1], phi_ini_arr[zone1], Vp_ini_arr[zone1] = 2700.0, 0.10, 4.0
+rho_g_arr[zone2], phi_ini_arr[zone2], Vp_ini_arr[zone2] = 2500.0, 0.15, 3.0
+rho_g_arr[zone3], phi_ini_arr[zone3], Vp_ini_arr[zone3] = 2300.0, 0.25, 2.0
+rho_g_arr[zone4], phi_ini_arr[zone4], Vp_ini_arr[zone4] = 2100.0, 0.35, 1.5
+
+phi_synth, rho_synth, Vp_synth, Vs_synth, VpVs_synth = synthesize_vpvs(
+    vol, phi_ini_arr, rho_g_arr, Vp_ini_arr
+)
+print("---Synthetic Vp/Vs (Botter et al., 2014) ---")
+print("phi   : min %.4f  mean %.4f  max %.4f" % (phi_synth.min(), phi_synth.mean(), phi_synth.max()))
+print("Vp    : min %.4f  mean %.4f  max %.4f (km/s)" % (Vp_synth.min(), Vp_synth.mean(), Vp_synth.max()))
+print("Vs    : min %.4f  mean %.4f  max %.4f (km/s)" % (Vs_synth.min(), Vs_synth.mean(), Vs_synth.max()))
+print("Vp/Vs : min %.4f  mean %.4f  max %.4f" % (VpVs_synth.min(), VpVs_synth.mean(), VpVs_synth.max()))
 
 DynStress = contactForceWithDepths - rhogh
 print(np.mean(rhogh))
@@ -266,7 +318,7 @@ plt.show()
 print("---IG-FEM strain calculation is done within",time.time()-solving_time,"sec")
 
 start = time.time()
-VTKUnstructuredConverter2(deformed_cood, rad, E11, E22, E33, E12, E13, E23, vol, distot, stresses, DynStress, Z_disp, components)
+VTKUnstructuredConverter2(deformed_cood, rad, E11, E22, E33, E12, E13, E23, vol, distot, stresses, DynStress, Z_disp, components, phi_synth, Vp_synth, Vs_synth, VpVs_synth)
 print("---VTK convert is done within",time.time()-solving_time,"sec")
 
 print("---3D IG-FEM strain calculation complete---")
