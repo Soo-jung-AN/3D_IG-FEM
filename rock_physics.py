@@ -85,3 +85,85 @@ def zoned_initial_properties(pos):
             sel &= (x >= x_lo) & (x <= x_hi)
         rho_grain[sel], phi_ini[sel], Vp_ini[sel] = rho_g, phi0, vp0
     return phi_ini, rho_grain, Vp_ini
+
+
+# ---------------------------------------------------------------------
+# Crustal calibration (Brocher, 2005, BSSA 95, 2081-2092)
+#
+# Han's (1986) Vp-Vs line in Eq. (4) is a water-saturated SANDSTONE fit
+# over roughly 3.0-5.5 km/s. Extrapolated below ~2.5 km/s it returns Vs
+# near zero and Vp/Vs above 4, i.e. Poisson's ratio approaching 0.5 for
+# rock that is supposed to be consolidated. Brocher's regression fit and
+# the Nafe-Drake curve are the standard crustal-scale replacements and
+# stay physical over 1.5 < Vp < 8.5 km/s, which is the range a 15 km
+# column actually spans.
+# ---------------------------------------------------------------------
+
+def vs_from_vp_brocher(Vp):
+    """Brocher (2005) Eq. (1), the 'regression fit'. Vp, Vs in km/s;
+    valid for 1.5 < Vp < 8.0 km/s."""
+    return (0.7858 - 1.2344 * Vp + 0.7949 * Vp ** 2
+            - 0.1238 * Vp ** 3 + 0.0064 * Vp ** 4)
+
+
+def density_from_vp_nafe_drake(Vp):
+    """Brocher (2005) Eq. (2), the Nafe-Drake curve. Vp in km/s, bulk
+    density returned in kg/m3; valid for 1.5 < Vp < 8.5 km/s."""
+    return 1000.0 * (1.6612 * Vp - 0.4721 * Vp ** 2 + 0.0671 * Vp ** 3
+                     - 0.0043 * Vp ** 4 + 0.000106 * Vp ** 5)
+
+
+def vp_from_density_nafe_drake(rho, lo=1.5, hi=8.5, iters=60):
+    """Invert the Nafe-Drake curve: the Vp a given bulk density implies.
+    The curve is monotonic over its stated range, so a bisection is exact
+    to machine precision and needs no fitted inverse."""
+    rho = np.asarray(rho, dtype=float)
+    a = np.full(rho.shape, lo)
+    b = np.full(rho.shape, hi)
+    for _ in range(iters):
+        m = 0.5 * (a + b)
+        too_slow = density_from_vp_nafe_drake(m) < rho
+        a = np.where(too_slow, m, a)
+        b = np.where(too_slow, b, m)
+    return 0.5 * (a + b)
+
+
+def grain_density_for_bulk(rho_bulk, phi, rho_fluid=RHO_WATER):
+    """The grain density that makes Eq. (2) reproduce a target UNDEFORMED
+    bulk density at porosity phi. Without this the workflow silently
+    lowers the model's density: ZONES gives Eq. (2) the DEM's own bulk
+    densities as GRAIN densities, and mixing water into them puts the
+    synthesized bulk 9-14% below the density the DEM used to compute its
+    own lithostatic stress."""
+    return (np.asarray(rho_bulk, dtype=float) - rho_fluid * phi) / (1.0 - phi)
+
+
+# Bulk densities the DEM itself uses for lithostatic stress in main.py,
+# with crustal porosities and the Vp each density implies through the
+# Nafe-Drake curve. Same geometry as ZONES; only the properties differ.
+ZONES_CRUSTAL_RHO_PHI = (
+    # (z_lo, z_hi, x_lo, x_hi, rho_bulk, phi_ini)
+    (-15e3, -11e3, None,  None,  2700.0, 0.01),
+    (-11e3,  -7e3, None,  None,  2500.0, 0.03),
+    ( -7e3,   0.0, None,  None,  2300.0, 0.10),
+    (-15e3, -13e3, 30e3,  120e3, 2100.0, 0.05),   # weak seed layer
+)
+
+
+def crustal_initial_properties(pos):
+    """Reference properties tied to the DEM's own density structure:
+    Vp_ini from the Nafe-Drake curve, and a grain density chosen so the
+    undeformed bulk density is the one the DEM assumed. Returns
+    (phi_ini, rho_grain, Vp_ini) with the same signature as
+    zoned_initial_properties, so it drops straight into synthesize_vpvs."""
+    x, z = pos[:, 0], pos[:, 2]
+    n = len(pos)
+    phi_ini = np.zeros(n)
+    rho_bulk = np.zeros(n)
+    for z_lo, z_hi, x_lo, x_hi, rho_b, phi0 in ZONES_CRUSTAL_RHO_PHI:
+        sel = (z >= z_lo) & (z < z_hi)
+        if x_lo is not None:
+            sel &= (x >= x_lo) & (x <= x_hi)
+        rho_bulk[sel], phi_ini[sel] = rho_b, phi0
+    Vp_ini = vp_from_density_nafe_drake(rho_bulk)
+    return phi_ini, grain_density_for_bulk(rho_bulk, phi_ini), Vp_ini
