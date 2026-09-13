@@ -28,15 +28,29 @@ def tet_quality(undeformed_cood, ele_id):
     return 6 * np.sqrt(2) * volume / edges.max(axis=1) ** 3
 
 
-def reshape_3D(undeformed_cood, ele_id, q_min=0.01):
+def reshape_3D(undeformed_cood, ele_id, q_min=0.05):
     """Drop degenerate (sliver) tetrahedra, which are where the recovered
     deformation gradient blows up.
 
     The filter is on shape quality, not raw volume. The previous absolute
     test (volume < 1e-6) is scale dependent and silently does nothing on a
     model whose element volumes run 1e4-1e8: it removed 0 of the 1,550,208
-    elements of the reference mesh, while 2.4% of them had q < 0.01. Those
-    slivers produced the heavy tails in `vol` (down to -392, up to +211).
+    elements of the reference mesh, even though 5% of them are slivers.
+
+    q_min = 0.05 comes from a sweep on the reference model, scoring each
+    threshold by the spread of `vol` and by agreement with an independent
+    nearest-neighbour (SSPX-style) strain estimate on the same particles:
+
+        q_min   removed   vol range        corr vs SSPX (all / |vol|<1)
+        0        0.00%    -391.8 .. +210.8    +0.110 / +0.622
+        0.01     2.41%     -35.9 ..  +52.4    +0.415 / +0.682
+        0.05     5.24%     -17.8 ..  +22.9    +0.581 / +0.719
+        0.10     5.69%     -19.2 ..  +24.3    +0.582 / +0.723
+
+    Mean and median `vol` are unchanged across all of these (-0.038,
+    -0.068), i.e. the filter only removes sliver-driven outliers. Past
+    0.05 it plateaus. No particle loses all of its supporting elements at
+    any threshold up to 0.1, so the mass matrix stays non-singular.
     """
     return ele_id[tet_quality(undeformed_cood, ele_id) >= q_min]
 
