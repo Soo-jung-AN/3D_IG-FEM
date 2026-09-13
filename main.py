@@ -7,7 +7,7 @@ from scipy.spatial import Delaunay
 import numpy.linalg as lina
 from Assembly3 import M_assembly_3D_block, A_assembly_3D_block, R_assembly_3D_block
 from preprocessing3 import reshape_3D, Get_shf_coef_3D, Get_gp_cood_3D, remove_unused_nodes
-from rock_physics import synthesize_vpvs
+from rock_physics import synthesize_vpvs, zoned_initial_properties
 from scipy import sparse
 from scipy.sparse.linalg import splu
 import vtk
@@ -220,23 +220,9 @@ for i in range(p_num):
 # Botter et al. (2014, Marine and Petroleum Geology 57, 187-207), Eqs. 1-4.
 # `vol` (= det(F) - 1) computed above is exactly the volumetric strain
 # (dilatation) used by that workflow. phi_ini / Vp_ini below are example
-# reference (undeformed) properties per depth zone -- reusing the same
-# grain densities already assumed for the DynStress calculation above --
-# and should be calibrated to the actual DEM materials, the same way
-# Botter et al. calibrated their sandstone/shale properties (their Table 3).
-phi_ini_arr = np.zeros(p_num)
-rho_g_arr = np.zeros(p_num)
-Vp_ini_arr = np.zeros(p_num)   # km/s
-
-zone1 = (Zpos >= -15e3) & (Zpos < -11e3)
-zone2 = (Zpos >= -11e3) & (Zpos < -7e3)
-zone3 = (Zpos >= -7e3) & (Zpos < 0)
-zone4 = (Zpos >= -15e3) & (Zpos < -13e3) & (Xpos >= 30e3) & (Xpos <= 120e3)
-
-rho_g_arr[zone1], phi_ini_arr[zone1], Vp_ini_arr[zone1] = 2700.0, 0.10, 4.0
-rho_g_arr[zone2], phi_ini_arr[zone2], Vp_ini_arr[zone2] = 2500.0, 0.15, 3.0
-rho_g_arr[zone3], phi_ini_arr[zone3], Vp_ini_arr[zone3] = 2300.0, 0.25, 2.0
-rho_g_arr[zone4], phi_ini_arr[zone4], Vp_ini_arr[zone4] = 2100.0, 0.35, 1.5
+# reference (undeformed) properties per depth zone (rock_physics.ZONES,
+# shared with compare_3d.py so the two use an identical reference state).
+phi_ini_arr, rho_g_arr, Vp_ini_arr = zoned_initial_properties(undeformed_cood)
 
 phi_synth, rho_synth, Vp_synth, Vs_synth, VpVs_synth = synthesize_vpvs(
     vol, phi_ini_arr, rho_g_arr, Vp_ini_arr
