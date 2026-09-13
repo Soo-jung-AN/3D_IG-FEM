@@ -16,26 +16,29 @@ import numpy as np
     #         del_id.append(i)
     # return np.delete(ele_id,del_id,0)
 
-def reshape_3D(undeformed_cood, ele_id):
-    del_id = []
-    for i in range(len(ele_id)):
-        e1, e2, e3, e4 = ele_id[i]
-        x1, y1, z1 = undeformed_cood[e1]
-        x2, y2, z2 = undeformed_cood[e2]
-        x3, y3, z3 = undeformed_cood[e3]
-        x4, y4, z4 = undeformed_cood[e4]
-        
-        # Tetrahedral Volume 계산
-        v_matrix = np.array([
-            [x2-x1, x3-x1, x4-x1],
-            [y2-y1, y3-y1, y4-y1],
-            [z2-z1, z3-z1, z4-z1]
-        ])
-        volume = np.abs(np.linalg.det(v_matrix)) / 6.0
-        
-        if volume < 1e-6:
-            del_id.append(i)
-    return np.delete(ele_id, del_id, 0)
+def tet_quality(undeformed_cood, ele_id):
+    """Normalised tetrahedron shape quality q = 6*sqrt(2)*V / L_max^3.
+    q = 1 for a regular tetrahedron and tends to 0 for a sliver, and it is
+    scale invariant -- unlike a raw volume, it means the same thing whether
+    the model is in metres or kilometres."""
+    a, b, c, d = (undeformed_cood[ele_id[:, k]] for k in range(4))
+    volume = np.abs(np.einsum('ij,ij->i', b - a, np.cross(c - a, d - a))) / 6.0
+    edges = np.stack([np.linalg.norm(x - y, axis=1) for x, y in
+                      ((a, b), (a, c), (a, d), (b, c), (b, d), (c, d))], axis=1)
+    return 6 * np.sqrt(2) * volume / edges.max(axis=1) ** 3
+
+
+def reshape_3D(undeformed_cood, ele_id, q_min=0.01):
+    """Drop degenerate (sliver) tetrahedra, which are where the recovered
+    deformation gradient blows up.
+
+    The filter is on shape quality, not raw volume. The previous absolute
+    test (volume < 1e-6) is scale dependent and silently does nothing on a
+    model whose element volumes run 1e4-1e8: it removed 0 of the 1,550,208
+    elements of the reference mesh, while 2.4% of them had q < 0.01. Those
+    slivers produced the heavy tails in `vol` (down to -392, up to +211).
+    """
+    return ele_id[tet_quality(undeformed_cood, ele_id) >= q_min]
 
 def remove_unused_nodes(undeformed_cood, ele_id):
     used_nodes = np.unique(ele_id).astype(np.int64)  
