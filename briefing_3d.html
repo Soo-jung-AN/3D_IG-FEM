@@ -146,12 +146,14 @@ footer{border-top:1px solid var(--rule); margin-top:64px; padding-top:22px;
 
 <div class="wrap">
 <header>
-  <div class="eyebrow">3D_IG-FEM · Botter et&nbsp;al. (2014) replication · m4_1 stage</div>
+  <div class="eyebrow">3D_IG-FEM · Botter et&nbsp;al. (2014) replication · An &amp; So (2026) model M4, stage 1</div>
   <h1>Three Routes,<br>One Rift</h1>
   <p class="standfirst">Two strain estimators and one contact-mechanics model, run on the same
   259,943-particle 3D DEM extension model, carried all the way to first-arrival traveltimes and a
   synthetic seismic section. Where they agree turns out to say less than where they don't — and
-  <a href="#plaus">the numbers they agree on are the wrong size</a> for a 15 km crustal column.</p>
+  <a href="#plaus">the numbers they agree on are the wrong size</a> for a 15 km crustal column.
+  The model's <a href="#table1">own published constants</a> fix that, and expose the one layer
+  that does not survive translation into a seismic model.</p>
   <div class="runbar">
     <span>particles<b>259,943</b></span>
     <span>tetrahedra<b>1,469,046</b></span>
@@ -469,6 +471,113 @@ footer{border-top:1px solid var(--rule); margin-top:64px; padding-top:22px;
   slow basin fill on top belongs.</figcaption>
 </figure>
 
+
+<section class="stage prose" id="table1">
+  <div class="stage-head">
+    <span class="stage-n">Verdict</span>
+    <h2>The DEM's own constants</h2>
+    <span class="of">An &amp; So (2026), Supplementary Table 1, model M4</span>
+  </div>
+  <p>The supplementary table gives density, Young's modulus and friction angle per layer. That
+  ends the guesswork: this model's seismic properties follow from its own elastic constants, with
+  no empirical velocity relation anywhere in the chain —</p>
+  <p style="text-align:center; font-family:var(--serif); font-size:1.05rem; margin:1.1em 0">
+  Vp = √[ E(1−ν) / ρ(1+ν)(1−2ν) ] &nbsp;&nbsp;&nbsp; Vs = √[ E / 2ρ(1+ν) ]</p>
+  <p>Poisson's ratio is the only thing the table does not supply; ν = 0.25 is assumed below.</p>
+</section>
+
+<div class="tw">
+  <table>
+    <caption>Table 1 turned into seismic properties, and judged against a real 15 km column
+    (<span class="num">paper_calibration.py</span>)</caption>
+    <thead><tr><th>Layer</th><th>depth km</th><th>ρ</th><th>E GPa</th><th>UCS MPa</th>
+      <th>E/UCS</th><th>Vp m/s</th><th>Vs</th><th>Z ×10⁶</th><th>verdict</th></tr></thead>
+    <tbody>
+      <tr><td>upper</td><td>0…−7</td><td>2300</td><td>30</td><td>156.9</td><td>191</td>
+        <td>3956</td><td>2284</td><td>9.10</td><td style="text-align:left"><span class="pill g">plausible</span></td></tr>
+      <tr><td>middle</td><td>−7…−11</td><td>2500</td><td>50</td><td>174.3</td><td>287</td>
+        <td>4899</td><td>2828</td><td>12.25</td><td style="text-align:left"><span class="pill g">plausible</span></td></tr>
+      <tr><td>lower</td><td>−11…−15</td><td>2700</td><td>70</td><td>197.1</td><td>355</td>
+        <td>5578</td><td>3220</td><td>15.06</td><td style="text-align:left"><span class="pill w">4% slow</span></td></tr>
+      <tr class="hl"><td>décollement</td><td>−13…−15</td><td>2100</td><td>3</td><td>90.9</td><td>33</td>
+        <td>1309</td><td>756</td><td>2.75</td><td style="text-align:left"><span class="pill c">not a rock</span></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<section class="stage prose" style="margin-top:26px">
+  <p><b>The three crustal layers pass every independent check.</b> Gardner's (1974) law reproduces
+  the table's densities from those velocities to within
+  <span class="num">0.9 / 3.5 / 6.3%</span>; Brocher's (2005) Vp–Vs fit reproduces the elastic Vs
+  to within <span class="num">4%</span>; and the E/UCS modulus ratios land inside Deere &amp;
+  Miller's <span class="num">200–500</span> band for real rock. None of those three relations ever
+  saw this model. After deformation the layers average
+  <span class="num">Vp 3.89 / 5.09 / 5.97 km/s</span> and impedance
+  <span class="num">8.73 / 12.92 / 16.48 ×10⁶</span> — inside the published ranges throughout.</p>
+
+  <p><b>The décollement fails all three.</b> <span class="num">E/UCS = 33</span> is an order of
+  magnitude outside the rock band, Gardner misses its density by <span class="num">13%</span>,
+  Brocher misses its Vs by <span class="num">177%</span>, and
+  <span class="num">Vp = 1.31 km/s</span> at 13–15 km depth is shallow-marine-sediment velocity.
+  A real evaporite detachment — the usual rock at that density — is seismically <em>fast</em>,
+  <span class="num">4.0–4.5 km/s</span>. This one is the slowest thing in the model, which gives a
+  normal-incidence reflection coefficient of <span class="num">−0.691</span> against the lower
+  crust. No crustal interface reflects like that; it is close to a rock/gas contrast. The
+  décollement is a mechanical device that does its job in the DEM and does not survive translation
+  into a seismic model.</p>
+</section>
+<figure>
+  <img src="fig3d_paper_audit.png" alt="Three panels auditing Supplementary Table 1: Young's modulus against UCS with the Deere and Miller envelope, Vp against density with Gardner's curve, and the reflection coefficients of the layer stack.">
+  <figcaption>The same table read three ways. <b>Left:</b> stiffness against strength — the three
+  crustal layers sit inside the real-rock envelope, the décollement an order of magnitude below it.
+  <b>Centre:</b> the velocity each density implies — the crustal layers straddle Gardner's curve,
+  the décollement sits far below, where a real evaporite would sit far above.
+  <b>Right:</b> what the undeformed stack would reflect.</figcaption>
+</figure>
+<figure>
+  <img src="fig3d_paper_profiles.png" alt="Four depth profiles - Vp, density, impedance and Vp/Vs - for three calibrations against shaded reference bands.">
+  <figcaption>Three calibrations of the same IG-FEM strain field. The Table 1 curve sits inside
+  every reference band for Vp, density and impedance. Vp/Vs is flat at √3 because ν = 0.25 was
+  assumed — see the caveat below.</figcaption>
+</figure>
+<figure>
+  <img src="fig3d_paper_sections.png" alt="Two synthetic seismic sections at 5 Hz, one for the published calibration and one for the Table 1 calibration.">
+  <figcaption>At the frequency the 250 m grid actually supports. The bright, continuous basal
+  reflector in the lower panel is the décollement at R = −0.69 — the most prominent feature in the
+  image, and the least defensible one.</figcaption>
+</figure>
+
+<section class="stage prose">
+  <div class="stage-head">
+    <span class="stage-n">Verdict · 2</span>
+    <h2>Two things the DEM cannot give you</h2>
+  </div>
+  <p><b>Vp/Vs.</b> This is the quantity the whole project set out to synthesize, and it is the one
+  the model does not constrain. Table 1 lists no Poisson's ratio, so Vp/Vs is whatever ν you
+  assume — <span class="num">1.732</span> at ν = 0.25, everywhere, with zero spatial variation.
+  Botter's Eq. (4) gave spatial variation but through a sandstone fit that returns Poisson's ratios
+  above 0.40 for 42% of this model. Hertz–Mindlin pins it at
+  <span class="num">1.4281</span> by construction. <b>None of the three routes produces a
+  defensible Vp/Vs field for this model</b>, and that should be stated rather than worked around.</p>
+  <p><b>A density response to strain.</b> Botter Eq. (2) routes density through porosity, which is
+  right for their 25%-porosity sandstone and inert at crustal porosity. Replacing it with mass
+  conservation, <span class="num">ρ = ρ₀ / det(F)</span>, is exact for the DEM's own kinematics —
+  but then the median compaction of <span class="num">−0.07</span> implies a 7% densification of
+  crystalline rock that has no pore space to give. The bound used here is asymmetric
+  (<span class="num">3%</span> compaction, <span class="num">25%</span> dilatation): rock can only
+  densify by closing the porosity it has, but can dilate much further by fracturing. This is where
+  the Botter workflow strains hardest against a crustal DEM — their det(F) − 1 of −0.07 really is
+  pore volume closing; here the same number is mostly particles rearranging in a granular stand-in
+  for solid rock.</p>
+  <p><b>And Hertz–Mindlin turns out to be the wrong effective medium.</b> Re-run with the table's
+  layer moduli instead of quartz, it lands <span class="num">34–39%</span> below the elastic
+  velocities in every layer. That is not a bug: Hertz–Mindlin builds stiffness from grain contacts
+  at the confining pressure, and this DEM is <em>bonded</em> — M4's cohesion is 48–60 MPa — so the
+  bonds carry most of the modulus and HM throws them away. For a cemented pack it has to come out
+  low. A contact-cement model (Dvorkin &amp; Nur, 1996) would be the right first-principles route;
+  or, given that E is published, simply use it.</p>
+</section>
+
 <section class="stage" id="caveats">
   <div class="stage-head">
     <span class="stage-n">Caveats</span>
@@ -489,12 +598,12 @@ footer{border-top:1px solid var(--rule); margin-top:64px; padding-top:22px;
       particles. As a Vp/Vs generator this route is useless; as a Vp generator it is informative.</p>
     </div>
     <div class="caveat">
-      <h4>The crustal calibration is inferred, not read</h4>
-      <p>Its densities are the ones main.py already encodes, which are almost certainly the
-      parameter table of An &amp; So (2026) — but that supplementary table has not been read
-      here. The porosities (0.10 / 0.03 / 0.01, and 0.05 in the weak seed) are assumed, and the
-      seed's 2100 kg/m³ could be evaporite or overpressured shale, which are very different rocks
-      at the same density.</p>
+      <h4>E is a contact modulus</h4>
+      <p>Table 1 lists E among "particle properties", so it is the contact-law modulus, not a
+      measured macroscopic one. It is used here as macroscopic on two grounds: Potyondy &amp;
+      Cundall (2004) found E_macro ≈ 1.1 E_c for a dense 3D bonded pack, and the table's own
+      E/UCS ratios already land in the real-rock range. If E_macro were 0.7 E_c instead, every
+      velocity here drops by 16%.</p>
     </div>
     <div class="caveat">
       <h4>Hertz–Mindlin covers 45% of the pack</h4>
