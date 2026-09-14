@@ -180,13 +180,15 @@ def crustal_initial_properties(pos):
 # directly, and the only free parameter left is Poisson's ratio, which
 # the table does not list.
 #
-# E is listed among "particle properties", i.e. it is the contact-law
-# modulus. For a dense 3D bonded pack the emergent macroscopic modulus is
-# close to it (Potyondy & Cundall, 2004, found E_macro ~ 1.1 E_c), and
-# the table's own E/UCS ratios land at 355 / 287 / 191 for the three
-# crustal layers -- squarely in Deere & Miller's medium-to-high modulus
-# ratio range for real rock -- so E is used here as the macroscopic
-# modulus. E_macro = 0.7 E_c instead would lower every velocity by 16%.
+# E is the MACROSCOPIC modulus, not the contact-law one: Supplementary
+# Fig. 10 reports uniaxial compression tests on a bonded cylindrical
+# sample of 19,434 particles (5 km diameter x 10 km height), loaded at
+# 3.1e-4 m/step, and the table carries the measured Young's modulus and
+# UCS from those tests. It is therefore the right quantity to put into an
+# elastic velocity, with no contact-to-continuum conversion needed. The
+# table's own E/UCS ratios (355 / 287 / 191 for the three crustal layers)
+# land in Deere & Miller's medium-to-high modulus ratio band for real
+# rock, which is a consistency check rather than an assumption.
 # ---------------------------------------------------------------------
 
 NU_DEM = 0.25        # not in the table; 0.25 is the Poisson-solid value
