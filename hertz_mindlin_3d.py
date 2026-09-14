@@ -92,14 +92,22 @@ def hertz_mindlin_KG(C, phi, G_grain, nu, P):
 def run(pos, rad, e_grain=E_GRAIN, nu=NU_GRAIN, rho_grain=RHO_GRAIN, verbose=True):
     """Vp/Vs on the deformed pack. Velocities are in m/s, and are NaN
     outside `valid` (particles whose measurement sphere would stick out of
-    the sample, or that carry no contact / no positive pressure)."""
+    the sample, or that carry no contact / no positive pressure).
+
+    e_grain and rho_grain may be per-particle arrays -- pass the layer
+    values of An & So (2026) Supplementary Table 1 rather than a single
+    mineral modulus, since this DEM's particles are not quartz grains but
+    stand-ins for layers with their own published E."""
     n = len(pos)
+    e_grain = np.broadcast_to(np.asarray(e_grain, dtype=float), (n,))
+    rho_grain = np.broadcast_to(np.asarray(rho_grain, dtype=float), (n,))
     pairs, overlap, normal = find_contacts(pos, rad)
     if verbose:
         print(f"  contacts: {len(pairs)}", flush=True)
 
     R_eff = (rad[pairs[:, 0]] * rad[pairs[:, 1]]) / (rad[pairs[:, 0]] + rad[pairs[:, 1]])
-    E_star = e_grain / (2 * (1 - nu ** 2))
+    # 1/E* = (1-nu^2)/E_1 + (1-nu^2)/E_2, the two-body Hertz contact modulus
+    E_star = 1.0 / ((1 - nu ** 2) * (1 / e_grain[pairs[:, 0]] + 1 / e_grain[pairs[:, 1]]))
     Fn = (4.0 / 3.0) * E_star * np.sqrt(R_eff) * overlap ** 1.5
 
     C = np.zeros(n, dtype=np.int64)
@@ -135,7 +143,7 @@ def run(pos, rad, e_grain=E_GRAIN, nu=NU_GRAIN, rho_grain=RHO_GRAIN, verbose=Tru
     K = np.full(n, np.nan)
     G = np.full(n, np.nan)
     K[valid], G[valid] = hertz_mindlin_KG(
-        C[valid], phi[valid], e_grain / (2 * (1 + nu)), nu, P[valid])
+        C[valid], phi[valid], e_grain[valid] / (2 * (1 + nu)), nu, P[valid])
     rho = rho_grain * (1 - phi)          # dry pack
     Vp = np.full(n, np.nan)
     Vs = np.full(n, np.nan)
