@@ -138,3 +138,25 @@ fig3.suptitle("Synthetic section at the frequency the 250 m grid supports. The b
 fig3.tight_layout(rect=[0, 0, 1, 0.93])
 fig3.savefig("fig3d_paper_sections.png", dpi=140)
 print("saved fig3d_paper_sections.png")
+
+
+# --- Figure 4: surface t-x, all three routes on the table calibration -
+fig4, ax4 = plt.subplots(figsize=(13, 4.4))
+surf = np.array([np.where(inside[i, jy])[0].max() if inside[i, jy].any() else -1
+                 for i in range(len(gx))])
+ok = surf >= 0
+ix = np.arange(len(gx))[ok]
+for key, lab, c in (("published", "Route A · Botter empirical", CP),
+                    ("paper", "Route B · Table 1 E and ρ", CD),
+                    ("hm", "Route C · Hertz–Mindlin, Table 1 moduli", "#7a4fa3")):
+    ax4.plot(gx[ok] / 1000, D[f"tt_{key}"][ix, jy, surf[ok]], lw=1.9, color=c, label=lab)
+off = np.abs(gx[ok] - D["src"][0]) / 1000
+for v, ls in ((6.0, "--"), (4.0, ":")):
+    ax4.plot(gx[ok] / 1000, off / v, ls, lw=1.1, color=CR, label=f"straight ray at {v:.0f} km/s")
+ax4.axvline(D["src"][0] / 1000, color="k", ls=":", lw=1)
+ax4.set_xlabel("X (km)"); ax4.set_ylabel("first arrival (s)")
+ax4.set_title("Surface t–x curves, three rock-physics routes on the same strain field", fontsize=11)
+ax4.legend(frameon=False, fontsize=9); ax4.grid(alpha=.25)
+fig4.tight_layout()
+fig4.savefig("fig3d_paper_tx.png", dpi=140)
+print("saved fig3d_paper_tx.png")

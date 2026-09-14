@@ -137,9 +137,14 @@ def main():
     _, rho_0, Vp_0, _, _ = R.synthesize_vpvs(vol, phi0, rg0, vp0)
 
     store = {}
-    for key, Vp_kms, rho in (("published", Vp_0, rho_0), ("paper", Vp_p, rho_p)):
-        VP = C.interpolate(tree, Vp_kms * 1000.0, nodes, shape)
-        RHO = C.interpolate(tree, rho, nodes, shape)
+    hm_tree = cKDTree(X1[hm["valid"]])
+    for key, Vp_kms, rho in (("published", Vp_0, rho_0), ("paper", Vp_p, rho_p), ("hm", None, None)):
+        if key == "hm":
+            VP = C.interpolate(hm_tree, hm["Vp"][hm["valid"]], nodes, shape)
+            RHO = C.interpolate(hm_tree, hm["rho"][hm["valid"]], nodes, shape)
+        else:
+            VP = C.interpolate(tree, Vp_kms * 1000.0, nodes, shape)
+            RHO = C.interpolate(tree, rho, nodes, shape)
         T = skfmm.travel_time(lsf, VP, dx=dx)
         t = T[ix, jy, surf[ok]]
         s = C.section(VP[:, jy, :], RHO[:, jy, :], inside[:, jy, :], dx, SEISMIC_FREQ)
@@ -148,9 +153,15 @@ def main():
         print(f"  {key:>10}  Vp {VP[inside].mean():6.0f} m/s   Z {(VP*RHO)[inside].mean()/1e6:5.2f}e6"
               f"   surface arrival mean {t.mean():5.2f} s   max {t.max():5.2f} s")
     print(f"  {'':>10}  a straight 6.0 km/s ray over the same 82 km offset: 13.7 s")
-    a, b = store["sec_published"], store["sec_paper"]
-    m = np.isfinite(a) & np.isfinite(b)
-    print(f"\n  section corr, published vs paper at {SEISMIC_FREQ:.0f} Hz: {np.corrcoef(a[m], b[m])[0,1]:+.3f}")
+    print()
+    for other in ("published", "hm"):
+        a, b = store[f"sec_{other}"], store["sec_paper"]
+        m = np.isfinite(a) & np.isfinite(b)
+        ti = inside
+        print(f"  {other:>9} vs paper:  traveltime corr "
+              f"{np.corrcoef(store[f'tt_{other}'][ti], store['tt_paper'][ti])[0,1]:+.4f}"
+              f"  RMS {np.sqrt(np.mean((store[f'tt_{other}'][ti]-store['tt_paper'][ti])**2)):.3f} s"
+              f"   |   {SEISMIC_FREQ:.0f} Hz section corr {np.corrcoef(a[m], b[m])[0,1]:+.4f}")
 
     np.savez_compressed(OUT, gx=gx, gy=gy, gz=gz, dx=dx, inside=inside, slice_y=jy,
                         src=np.array([gx[src[0]], gy[src[1]], gz[src[2]]]),
