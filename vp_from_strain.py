@@ -116,6 +116,10 @@ def main():
     ap.add_argument("--density", required=True)
     ap.add_argument("--out", default="./results/vp_from_strain.npz")
     ap.add_argument("--q-min", type=float, default=Q_MIN)
+    ap.add_argument("--zmax", type=float, default=None,
+                    help="drop particles above this z, e.g. to cut a free-surface "
+                         "cap layer out of the solve entirely rather than masking "
+                         "it afterwards")
     ap.add_argument("--alpha", type=float, default=None,
                     help="max tetrahedron edge in m (default 3x the median "
                          "nearest-neighbour spacing)")
@@ -125,6 +129,13 @@ def main():
     X0 = np.loadtxt(args.init)
     X1 = np.loadtxt(args.pos)
     rho_0 = np.loadtxt(args.density)
+    keep = np.ones(len(X0), bool)
+    if args.zmax is not None:
+        keep = X0[:, 2] < args.zmax
+        print(f"cutting {(~keep).sum()} particles above z = {args.zmax:.0f} m "
+              f"({100*(~keep).mean():.1f}%); they are removed from the MESH, not just "
+              f"masked afterwards, so they cannot bleed into the projection")
+        X0, X1, rho_0 = X0[keep], X1[keep], rho_0[keep]
     print(f"{len(X0)} particles, "
           f"{(X0[:,0].max()-X0[:,0].min())/1e3:.2f} x "
           f"{(X0[:,1].max()-X0[:,1].min())/1e3:.2f} x "
@@ -165,7 +176,7 @@ def main():
           f"sped up by compaction: {100*np.mean(vol<0):.1f}%")
 
     np.savez_compressed(args.out, X0=X0, X1=X1, rho_0=rho_0, vol=vol, vol_sspx=vol_s,
-                        Vp_ini=Vp_ini, Vp=Vp, Vs=Vs, rho=rho, Z=Z)
+                        Vp_ini=Vp_ini, Vp=Vp, Vs=Vs, rho=rho, Z=Z, keep=keep)
     print(f"\nsaved {args.out}   ({time.time()-t0:.0f} s)")
 
 

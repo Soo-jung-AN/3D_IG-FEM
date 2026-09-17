@@ -94,12 +94,18 @@ def main():
     ap.add_argument("--pos", required=True)
     ap.add_argument("--alpha", type=float, default=None)
     ap.add_argument("--q-min", type=float, default=0.05)
+    ap.add_argument("--zmax", type=float, default=None,
+                    help="drop particles above this z before meshing")
     ap.add_argument("--out", default="./results/strain_tensor.npz")
     args = ap.parse_args()
     t0 = time.time()
 
     X0 = np.loadtxt(args.init)
     X1 = np.loadtxt(args.pos)
+    if args.zmax is not None:
+        keep = X0[:, 2] < args.zmax
+        print(f"cutting {(~keep).sum()} particles above z = {args.zmax:.0f} m")
+        X0, X1 = X0[keep], X1[keep]
     ele_id, _ = build_mesh(X0, args.q_min, args.alpha)
     F = deformation_gradient(X0, X1, ele_id)
     a = analyse(F)
