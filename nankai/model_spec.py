@@ -34,11 +34,6 @@ from nankai import geometry as G
 
 KM = 1000.0
 
-# numpy renamed trapz -> trapezoid in 2.0. PFC 6.0 embeds numpy 1.13, so
-# this module has to run on both: it is imported by build_model.py inside
-# PFC as well as by the analysis scripts outside it.
-_trapz = getattr(np, "trapezoid", None) or np.trapz
-
 # unit codes
 UNITS = {"kumano": 1, "inner_prism": 2, "outer_prism": 3,
          "decollement": 4, "underthrust": 5, "crust": 6}
@@ -208,7 +203,10 @@ class Model:
     def n_particles(self, packing_fraction=0.6):
         x = np.linspace(self.x0, self.x1, 400)
         top, bot = self.envelope(x)
-        area = _trapz(bot - top, x) * KM ** 2
+        # np.trapezoid is numpy >= 2; PFC 6 embeds numpy 1.13, which has
+        # only np.trapz. model_spec runs inside PFC, so take whichever.
+        integrate = getattr(np, "trapezoid", None) or np.trapz
+        area = integrate(bot - top, x) * KM ** 2
         vol = area * self.slab
         return int(packing_fraction * vol / (4 / 3 * np.pi * self.r_mean ** 3))
 
