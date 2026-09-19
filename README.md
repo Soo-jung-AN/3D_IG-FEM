@@ -57,3 +57,50 @@ elements of this mesh even though ~5% of them are slivers. Those slivers are
 where the recovered deformation gradient blows up: without the filter, vol
 ranged from -392 to +211 against a median of -0.07. See the docstring in
 preprocessing3.py for the threshold sweep.
+
+# What is in results/
+
+Most of `results/` is ignored, because three of the grid-based `.npz`
+files are 192-293 MB and GitHub rejects anything over 100 MB. What is
+committed is the set that is small and expensive to recompute:
+
+| file | size | what it is | cost to regenerate |
+|---|---|---|---|
+| `vol_m1_1.npy` … `vol_m5_1.npy` | 2 MB each | IG-FEM volumetric strain, An & So (2026) models M1-M5 at the first extension stage, 259,943 particles, sliver filter q >= 0.05 | 22 min each |
+| `strain_model3.npz` | 7.2 MB | full strain tensor of the strike-slip run: F, E, principal strains, max shear, polar-decomposition rotation | 2 min |
+| `vp_model3.npz` | 4.5 MB | Vp/Vs/rho of the strike-slip run, all 52,995 particles | 2 min |
+| `vp_model3_nocap.npz` | 4.1 MB | the same with the bulking cap layer cut from the mesh (47,802 particles) | 2 min |
+| `trace_nocap.npy`, `fault_trace_model3.npy` | < 0.1 MB | the picked fault trace and its half-width per x-column | seconds |
+
+`vol_m4_1.npy` is the one that matters most: it is byte-for-byte the
+`vol` field of the 93.6 MB `results/80-3.vtk` that `main.py` writes
+(verified to 1.9e-15), so every downstream script can take it directly
+and skip both the 16-minute solve and the large .vtk:
+
+```
+python3 compare_3d.py --igfem-vol results/vol_m4_1.npy
+```
+
+## Regenerating the files that are not committed
+
+All of them are fast once `vol_m4_1.npy` is in place:
+
+```
+python3 compare_3d.py --igfem-vol results/vol_m4_1.npy   # compare_3d.npz,  293 MB, 116 s
+python3 plausibility_3d.py                                # plausibility_3d.npz, 192 MB
+python3 paper_calibration.py                              # paper_calibration.npz, 280 MB
+python3 main.py                                           # results/80-3.vtk, 94 MB, 967 s
+```
+
+`main.py` is only needed for the .vtk itself; nothing else in the
+repository reads it.
+
+The strike-slip inputs (`init_pos3.txt`, `pos_3.txt`, `density_3.txt`,
+`rad_3.txt`, `contactForce_3.txt`) are not in the repository either.
+Point the scripts at wherever you keep them:
+
+```
+python3 vp_from_strain.py --init <init_pos3.txt> --pos <pos_3.txt> \
+    --density <density_3.txt> --alpha 125 --zmax -100 \
+    --out results/vp_model3_nocap.npz
+```
