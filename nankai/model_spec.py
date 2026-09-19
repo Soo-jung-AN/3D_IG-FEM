@@ -188,7 +188,10 @@ class Model:
     def n_particles(self, packing_fraction=0.6):
         x = np.linspace(self.x0, self.x1, 400)
         top, bot = self.envelope(x)
-        area = np.trapezoid(bot - top, x) * KM ** 2
+        # np.trapezoid is numpy >= 2; PFC 6 embeds numpy 1.13, which has
+        # only np.trapz. model_spec runs inside PFC, so take whichever.
+        integrate = getattr(np, "trapezoid", None) or np.trapz
+        area = integrate(bot - top, x) * KM ** 2
         vol = area * self.slab
         return int(packing_fraction * vol / (4 / 3 * np.pi * self.r_mean ** 3))
 

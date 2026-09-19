@@ -92,10 +92,47 @@ def build_mesh(X0, q_min=Q_MIN, alpha=None, verbose=True):
         print(f"  {len(tets)} tetrahedra: {100*long_edge.mean():.2f}% over alpha = "
               f"{alpha:.0f} m, {100*sliver.mean():.2f}% slivers (q < {q_min}), "
               f"{100*keep.mean():.2f}% kept")
-    orphan = np.setdiff1d(np.arange(len(X0)), np.unique(tets[keep]))
-    if len(orphan) and verbose:
-        print(f"  WARNING: {len(orphan)} particles have no supporting element")
+    keep, orphan = rescue_orphans(X0, tets, keep, verbose)
     return tets[keep], orphan
+
+
+def rescue_orphans(X0, tets, keep, verbose=True):
+    """Give every particle at least one supporting element.
+
+    A particle that loses all of its elements to the filters leaves an
+    empty row in the mass matrix, and splu then fails with "Factor is
+    exactly singular". Rather than let that happen, put back the single
+    best-shaped element touching each orphan. That is a handful of
+    poor elements in exchange for a solvable system, and the L2
+    projection only uses them where there is nothing else.
+
+    Returns the updated keep mask and whatever could not be rescued
+    (a particle in no tetrahedron at all, which Delaunay does not
+    produce, so in practice this is empty)."""
+    orphan = np.setdiff1d(np.arange(len(X0)), np.unique(tets[keep]))
+    if not len(orphan):
+        return keep, orphan
+
+    is_orphan = np.zeros(len(X0), bool)
+    is_orphan[orphan] = True
+    cand = np.where(is_orphan[tets].any(axis=1) & ~keep)[0]
+    q = tet_quality(X0, tets[cand]) if len(cand) else np.empty(0)
+
+    claimed = {}
+    for e in cand[np.argsort(-q)]:              # best-shaped first
+        for pt in tets[e]:
+            if is_orphan[pt] and pt not in claimed:
+                claimed[pt] = e
+    keep = keep.copy()
+    if claimed:
+        keep[np.fromiter(set(claimed.values()), dtype=np.int64)] = True
+    still = np.setdiff1d(orphan, np.fromiter(claimed, dtype=np.int64))
+    if verbose:
+        print(f"  {len(orphan)} particles had no supporting element; "
+              f"{len(claimed)} rescued by putting back "
+              f"{len(set(claimed.values()))} element(s)"
+              + (f", {len(still)} STILL UNSUPPORTED" if len(still) else ""))
+    return keep, still
 
 
 def sspx_vol_strain(X0, X1, k=16):
