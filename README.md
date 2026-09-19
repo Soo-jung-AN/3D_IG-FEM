@@ -95,12 +95,12 @@ python3 main.py                                           # results/80-3.vtk, 94
 `main.py` is only needed for the .vtk itself; nothing else in the
 repository reads it.
 
-The strike-slip inputs (`init_pos3.txt`, `pos_3.txt`, `density_3.txt`,
-`rad_3.txt`, `contactForce_3.txt`) are not in the repository either.
-Point the scripts at wherever you keep them:
+The strike-slip inputs are in `txt_strikeslip/` (22 MB); see the README
+there for the layer structure, the deformation style, and the two known
+problems with that run.
 
 ```
-python3 vp_from_strain.py --init <init_pos3.txt> --pos <pos_3.txt> \
-    --density <density_3.txt> --alpha 125 --zmax -100 \
-    --out results/vp_model3_nocap.npz
+python3 vp_from_strain.py --init txt_strikeslip/init_pos3.txt \
+    --pos txt_strikeslip/pos_3.txt --density txt_strikeslip/density_3.txt \
+    --alpha 125 --zmax -100 --out results/vp_model3_nocap.npz
 ```
