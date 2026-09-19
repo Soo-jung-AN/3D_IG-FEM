@@ -44,7 +44,7 @@ from nankai.model_spec import (Model, PROPERTIES, UNITS, UNIT_NAMES,
 # ---- run parameters --------------------------------------------------
 R_MEAN, R_RATIO = 33.0, 1.5        # m; 269k particles at slab = 264 m
 SLAB = 264.0                        # m, 4 mean diameters: this is plane strain
-SHORTENING = 3000.0                 # m of convergence to impose
+SHORTENING = float(os.environ.get("NANKAI_SHORTENING", "3000.0"))   # m of convergence
 PLATE_VELOCITY = 1.0                # m/step in model time; quasi-static, not real
 STEM = os.environ.get("NANKAI_STEM", "runs/nankai01")
 BASAL_FRICTION = float(os.environ.get("NANKAI_BASAL_FRICTION", "0.15"))
