@@ -5,106 +5,52 @@ from scipy.spatial import Delaunay
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from scipy.spatial import Delaunay
 import numpy.linalg as lina
-from Assembly3 import M_assembly_3D, A_assembly_3D, R_assembly_3D
+from Assembly3 import M_assembly_3D_block, A_assembly_3D_block, R_assembly_3D_block
 from preprocessing3 import reshape_3D, Get_shf_coef_3D, Get_gp_cood_3D, remove_unused_nodes
+from rock_physics import synthesize_vpvs, zoned_initial_properties
 from scipy import sparse
-from pypardiso import spsolve
+from scipy.sparse.linalg import splu
 import vtk
 np.set_printoptions(precision=10, threshold=20000000, linewidth=20000000)
 ############################################################################################################################################################
-def VTKUnstructuredConverter2(points, rad, E11, E22, E33, E12, E13, E23, vol, distot, stresses, DynStress, Z_disp, components):
+def VTKUnstructuredConverter2(points, rad, E11, E22, E33, E12, E13, E23, vol, distot, stresses, DynStress, Z_disp, components, phi_synth, Vp_synth, Vs_synth, VpVs_synth):
     num_points = points.shape[0]
-    lines = []
-    lines.append('# vtk DataFile Version 2.0\n')
-    lines.append('Unstructured Grid Example\n')
-    lines.append('ASCII\n')
-    lines.append('DATASET UNSTRUCTURED_GRID\n')
 
-    lines.append(f'POINTS {num_points} float\n')
-    for x, y, z in points:
-        lines.append(f'{x} {y} {z}\n')
+    def write_scalar(f, name, arr):
+        f.write(f'SCALARS {name} float 1\n')
+        f.write('LOOKUP_TABLE default\n')
+        f.write('\n'.join(map(str, arr.ravel())))
+        f.write('\n')
 
-    lines.append(f'CELLS {num_points} {num_points * 2}\n')
-    for i in range(num_points):
-        lines.append(f'1 {i}\n')
+    # Streamed straight to disk. Buffering the whole file as a list of Python
+    # strings first needs tens of GB at this particle count; writing block by
+    # block only ever holds one field in memory.
+    with open("./results/80-3.vtk", 'w') as f:
+        f.write('# vtk DataFile Version 2.0\n')
+        f.write('Unstructured Grid Example\n')
+        f.write('ASCII\n')
+        f.write('DATASET UNSTRUCTURED_GRID\n')
 
-    lines.append(f'CELL_TYPES {num_points}\n')
-    lines.extend(['1\n'] * num_points)
+        f.write(f'POINTS {num_points} float\n')
+        for x, y, z in points:
+            f.write(f'{x} {y} {z}\n')
 
-    lines.append(f'POINT_DATA {num_points}\n')
-    lines.append('SCALARS rad float 1\n')
-    lines.append('LOOKUP_TABLE default\n')
-    rad_flat = rad.ravel()
-    lines.append('\n'.join(map(str, rad_flat)) + '\n')
+        f.write(f'CELLS {num_points} {num_points * 2}\n')
+        for i in range(num_points):
+            f.write(f'1 {i}\n')
 
-    lines.append('SCALARS E11 float 1\n')
-    lines.append('LOOKUP_TABLE default\n')
-    E11_flat = E11.ravel()
-    lines.append('\n'.join(map(str, E11_flat)) + '\n')
+        f.write(f'CELL_TYPES {num_points}\n')
+        f.writelines('1\n' for _ in range(num_points))
 
-    lines.append('SCALARS E11 float 1\n')
-    lines.append('LOOKUP_TABLE default\n')
-    E11_flat = E11.ravel()
-    lines.append('\n'.join(map(str, E11_flat)) + '\n')
-
-    lines.append('SCALARS E22 float 1\n')
-    lines.append('LOOKUP_TABLE default\n')
-    E22_flat = E22.ravel()
-    lines.append('\n'.join(map(str, E22_flat)) + '\n')
-
-    lines.append('SCALARS E33 float 1\n')
-    lines.append('LOOKUP_TABLE default\n')
-    E33_flat = E33.ravel()
-    lines.append('\n'.join(map(str, E33_flat)) + '\n')
-
-    lines.append('SCALARS E12 float 1\n')
-    lines.append('LOOKUP_TABLE default\n')
-    E12_flat = E12.ravel()
-    lines.append('\n'.join(map(str, E12_flat)) + '\n')
-
-    lines.append('SCALARS E13 float 1\n')
-    lines.append('LOOKUP_TABLE default\n')
-    E13_flat = E13.ravel()
-    lines.append('\n'.join(map(str, E13_flat)) + '\n')
-
-    lines.append('SCALARS E23 float 1\n')
-    lines.append('LOOKUP_TABLE default\n')
-    E23_flat = E23.ravel()
-    lines.append('\n'.join(map(str, E23_flat)) + '\n')
-
-    lines.append('SCALARS vol float 1\n')
-    lines.append('LOOKUP_TABLE default\n')
-    vol_flat = vol.ravel()
-    lines.append('\n'.join(map(str, vol_flat)) + '\n')
-
-    lines.append('SCALARS distot float 1\n')
-    lines.append('LOOKUP_TABLE default\n')
-    distot_flat = distot.ravel()
-    lines.append('\n'.join(map(str, distot_flat)) + '\n')
-    
-    lines.append('SCALARS stress float 1\n')
-    lines.append('LOOKUP_TABLE default\n')
-    stress_flat = stresses.ravel()
-    lines.append('\n'.join(map(str, stress_flat)) + '\n')
-    
-    lines.append('SCALARS DynStress float 1\n')
-    lines.append('LOOKUP_TABLE default\n')
-    DynStress_flat = DynStress.ravel()
-    lines.append('\n'.join(map(str, DynStress_flat)) + '\n')
-
-    lines.append('SCALARS Z_disp float 1\n')
-    lines.append('LOOKUP_TABLE default\n')
-    Z_disp_flat = Z_disp.ravel()
-    lines.append('\n'.join(map(str, Z_disp_flat)) + '\n')
-
-    lines.append('SCALARS components float 1\n')
-    lines.append('LOOKUP_TABLE default\n')
-    components_flat = components.ravel()
-    lines.append('\n'.join(map(str, components_flat)) + '\n')
-
-    
-    with open("./results/80-3.vtk", 'w') as outFile:
-        outFile.writelines(lines)
+        f.write(f'POINT_DATA {num_points}\n')
+        for name, arr in (('rad', rad), ('E11', E11), ('E22', E22), ('E33', E33),
+                          ('E12', E12), ('E13', E13), ('E23', E23),
+                          ('vol', vol), ('distot', distot), ('stress', stresses),
+                          ('DynStress', DynStress), ('Z_disp', Z_disp),
+                          ('components', components), ('phi_synth', phi_synth),
+                          ('Vp_synth', Vp_synth), ('Vs_synth', Vs_synth),
+                          ('VpVs_synth', VpVs_synth)):
+            write_scalar(f, name, arr)
     print("vtkGenerationisDone")
 
 undeformed_cood = np.loadtxt("./txt/init_pos.txt") 
@@ -160,50 +106,63 @@ Get_shf_coef_3D(SC_mat_e, ele_id, undeformed_cood)
 PQ_detJ_e = np.zeros((TT_E, 4, 4), dtype=np.float64)
 Get_gp_cood_3D(PQ_detJ_e, ele_id, undeformed_cood)
 
-M_RC = np.zeros((2, 200 * TT_E), dtype=np.int64); M_data = np.zeros(200 * TT_E, dtype=np.float64)
-M_assembly_3D(SC_mat_e, ele_id, undeformed_cood, PQ_detJ_e, M_RC, M_data, p_num)
-M_CSR = sparse.csr_matrix((M_data, (M_RC[0], M_RC[1])), shape=(p_num * 9, p_num * 9))
+# The full 9*p_num system is block diagonal with only a handful of distinct
+# blocks, so assemble one copy of each and reuse a single factorisation for
+# all nine components (see the note in Assembly3.py). Identical result, ~6x
+# less assembly memory, and a p_num-sized solve instead of a 9*p_num one.
+nnz = 16 * TT_E
+M_RC = np.zeros((2, nnz), dtype=np.int64); M_data = np.zeros(nnz, dtype=np.float64)
+M_assembly_3D_block(SC_mat_e, ele_id, undeformed_cood, PQ_detJ_e, M_RC, M_data)
+M0 = sparse.csr_matrix((M_data, (M_RC[0], M_RC[1])), shape=(p_num, p_num)).tocsc()
+del M_RC, M_data
 
-A_RC = np.zeros((2, 200 * TT_E), dtype=np.int64); A_data = np.zeros(200 * TT_E, dtype=np.float64)
-A_assembly_3D(SC_mat_e, ele_id, undeformed_cood, PQ_detJ_e, A_RC, A_data, p_num)
-A_CSR = sparse.csr_matrix((A_data, (A_RC[0], A_RC[1])), shape=(p_num * 9, p_num * 9))
+A_RC = np.zeros((2, nnz), dtype=np.int64)
+Ax_data = np.zeros(nnz, dtype=np.float64)
+Ay_data = np.zeros(nnz, dtype=np.float64)
+Az_data = np.zeros(nnz, dtype=np.float64)
+A_assembly_3D_block(SC_mat_e, ele_id, undeformed_cood, PQ_detJ_e, A_RC, Ax_data, Ay_data, Az_data)
+Ax = sparse.csr_matrix((Ax_data, (A_RC[0], A_RC[1])), shape=(p_num, p_num))
+Ay = sparse.csr_matrix((Ay_data, (A_RC[0], A_RC[1])), shape=(p_num, p_num))
+Az = sparse.csr_matrix((Az_data, (A_RC[0], A_RC[1])), shape=(p_num, p_num))
+del A_RC, Ax_data, Ay_data, Az_data
 
-U = np.hstack((Ux, Uy, Uz))
-U = np.hstack((U,U,U))
-#U = np.column_stack((Ux, Uy, Uz, Ux, Uy, Uz, Ux, Uy, Uz)).flatten()
-AU = A_CSR * U 
+R0 = np.zeros(p_num, dtype=np.float64)
+R_assembly_3D_block(SC_mat_e, ele_id, undeformed_cood, PQ_detJ_e, R0)
 
-R_vec = np.zeros(p_num * 9, dtype=np.float64)
-R_assembly_3D(SC_mat_e, ele_id, undeformed_cood, PQ_detJ_e, R_vec, p_num)
+# One factorisation of the mass matrix, reused for all nine right-hand sides.
+# M0^-1 R0 == 1 exactly (partition of unity), so adding R0 to the diagonal
+# components turns them into the deformation gradient F_ii = 1 + H_ii, while
+# the off-diagonal components stay as the displacement gradient H_ij.
+lu = splu(M0)
+F11 = lu.solve(Ax @ Ux + R0)
+F22 = lu.solve(Ay @ Uy + R0)
+F33 = lu.solve(Az @ Uz + R0)
+H12 = lu.solve(Ay @ Ux)
+H23 = lu.solve(Az @ Uy)
+H31 = lu.solve(Ax @ Uz)
+H13 = lu.solve(Az @ Ux)
+H21 = lu.solve(Ax @ Uy)
+H32 = lu.solve(Ay @ Uz)
 
-AU_R = AU + R_vec
+H11, H22, H33 = F11 - 1, F22 - 1, F33 - 1
 
-solved_F = spsolve(M_CSR, AU_R)
-#from scipy.sparse.linalg import cg  # Conjugate Gradient
-#solved_F, info = cg(M_CSR, AU_R, tol=1e-8, maxiter=1000)
-
-F11 = solved_F[:p_num]
-F12 = solved_F[p_num:2*p_num]
-F13 = solved_F[2*p_num:3*p_num]
-F21 = solved_F[3*p_num:4*p_num]
-F22 = solved_F[4*p_num:5*p_num]
-F23 = solved_F[5*p_num:6*p_num]
-F31 = solved_F[6*p_num:7*p_num]
-F32 = solved_F[7*p_num:8*p_num]
-F33 = solved_F[8*p_num:]
-
-E11 = F11 + 0.5 * (F11 **2 + F21 **2 + F31**2)
-E22 = F22 + 0.5 * (F12 **2 + F22 **2 + F32**2)
-E33 = F33 + 0.5 * (F13 **2 + F23 **2 + F33**2)
-E12 = 0.5 * (F12 + F21) + 0.5 * (F11*F12 + F21*F22 + F31*F32)
-E13 = 0.5 * (F13 + F31) + 0.5 * (F11*F13 + F21*F13 + F31*F33)
-E23 = 0.5 * (F23 + F32) + 0.5 * (F12*F13 + F22*F23 + F32*F33)
+# Green-Lagrangian strain E = 0.5*(H + H^T + H^T H), in H-components:
+#   E_ij = 0.5*(H_ij + H_ji) + 0.5 * sum_k H_ki H_kj
+E11 = H11 + 0.5 * (H11**2 + H21**2 + H31**2)
+E22 = H22 + 0.5 * (H12**2 + H22**2 + H32**2)
+E33 = H33 + 0.5 * (H13**2 + H23**2 + H33**2)
+E12 = 0.5 * (H12 + H21) + 0.5 * (H11*H12 + H21*H22 + H31*H32)
+E13 = 0.5 * (H13 + H31) + 0.5 * (H11*H13 + H21*H23 + H31*H33)
+E23 = 0.5 * (H23 + H32) + 0.5 * (H12*H13 + H22*H23 + H32*H33)
 E21 = E12
 E31 = E13
 E32 = E23
 
-# Green Lagrangian Strain tensor , Volumetric tensor
-vol = (F11 * (F22 * F33 - F23 * F32) - F12 * (F21 * F33 - F23 * F31) + F13 * (F21 * F32 - F22 * F31)) - 1
+# Volumetric strain (dilatation) = det(F) - 1, with F = I + H. F11/F22/F33
+# already carry the +1 from R0; the off-diagonals of I are zero so H_ij = F_ij.
+vol = (F11 * (F22 * F33 - H23 * H32)
+       - H12 * (H21 * F33 - H23 * H31)
+       + H13 * (H21 * H32 - F22 * H31)) - 1
 tr = (E11 + E22 + E33) / 3
 distot = 0.5 * (((E11 - tr) * (E22 - tr) * (E33 - tr)) - E21**2 - E32**2 - E31**2)
 
@@ -256,6 +215,23 @@ for i in range(p_num):
     if 30e3 < xx < 120e3 and zz<-13e3:
        components[i]=9
 
+##########################
+# Synthetic Vp/Vs from DEM finite volumetric strain, following
+# Botter et al. (2014, Marine and Petroleum Geology 57, 187-207), Eqs. 1-4.
+# `vol` (= det(F) - 1) computed above is exactly the volumetric strain
+# (dilatation) used by that workflow. phi_ini / Vp_ini below are example
+# reference (undeformed) properties per depth zone (rock_physics.ZONES,
+# shared with compare_3d.py so the two use an identical reference state).
+phi_ini_arr, rho_g_arr, Vp_ini_arr = zoned_initial_properties(undeformed_cood)
+
+phi_synth, rho_synth, Vp_synth, Vs_synth, VpVs_synth = synthesize_vpvs(
+    vol, phi_ini_arr, rho_g_arr, Vp_ini_arr
+)
+print("---Synthetic Vp/Vs (Botter et al., 2014) ---")
+print("phi   : min %.4f  mean %.4f  max %.4f" % (phi_synth.min(), phi_synth.mean(), phi_synth.max()))
+print("Vp    : min %.4f  mean %.4f  max %.4f (km/s)" % (Vp_synth.min(), Vp_synth.mean(), Vp_synth.max()))
+print("Vs    : min %.4f  mean %.4f  max %.4f (km/s)" % (Vs_synth.min(), Vs_synth.mean(), Vs_synth.max()))
+print("Vp/Vs : min %.4f  mean %.4f  max %.4f" % (VpVs_synth.min(), VpVs_synth.mean(), VpVs_synth.max()))
 
 DynStress = contactForceWithDepths - rhogh
 print(np.mean(rhogh))
@@ -266,7 +242,7 @@ plt.show()
 print("---IG-FEM strain calculation is done within",time.time()-solving_time,"sec")
 
 start = time.time()
-VTKUnstructuredConverter2(deformed_cood, rad, E11, E22, E33, E12, E13, E23, vol, distot, stresses, DynStress, Z_disp, components)
+VTKUnstructuredConverter2(deformed_cood, rad, E11, E22, E33, E12, E13, E23, vol, distot, stresses, DynStress, Z_disp, components, phi_synth, Vp_synth, Vs_synth, VpVs_synth)
 print("---VTK convert is done within",time.time()-solving_time,"sec")
 
 print("---3D IG-FEM strain calculation complete---")
