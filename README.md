@@ -129,6 +129,15 @@ run resumes rather than restarts. Stages 2-5 are tested end to end: run
 on the strike-slip export they reproduce `results/vp_model3_nocap.npz`
 exactly.
 
+The mesh stage is verified against the ParaView mesh this repository has
+always used. Solving the full IG-FEM problem on both, same
+displacements, 259,943 particles: 1,469,045 elements against 1,469,046,
+identical mean and median volumetric strain, correlation 0.9999999986,
+and a largest single-particle difference of 5.4e-3 against a spread of
+0.186. `results/vol_m4_1_qhull.npy` holds the Qhull-mesh field next to
+`results/vol_m4_1.npy` from the ParaView mesh, so the comparison can be
+rerun. **ParaView is not needed in this workflow.**
+
 `pfc_export.py` runs INSIDE PFC and writes the five text files this
 repository reads. Call it twice in a model script: once on the
 equilibrated pack with `reference=True`, once at the end.
