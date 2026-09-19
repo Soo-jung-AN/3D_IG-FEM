@@ -18,6 +18,7 @@ Usage:
   python3 seismic_section.py [npz] [tag] [--dx 20] [--freq 25]
 """
 import argparse
+import os
 
 import numpy as np
 import matplotlib
@@ -102,8 +103,20 @@ def main():
         "axes.edgecolor": "#555", "axes.labelcolor": "#222",
         "xtick.color": "#444", "ytick.color": "#444", "axes.titleweight": "bold"})
 
-    trc = np.load("./results/trace_nocap.npy")
-    y_fault = float(np.interp(0.5 * (gx[0] + gx[-1]), trc[:, 0], trc[:, 1]))
+    # The fault trace picked per x-column, if one has been made for this
+    # model; otherwise fall back to the middle of the box, so the script
+    # runs on a brand-new export with nothing precomputed.
+    trace_file = f"./results/trace_{a.tag}.npy"
+    if not os.path.exists(trace_file):
+        trace_file = "./results/trace_nocap.npy"
+    if os.path.exists(trace_file):
+        trc = np.load(trace_file)
+        y_fault = float(np.interp(0.5 * (gx[0] + gx[-1]), trc[:, 0], trc[:, 1]))
+        print(f"  fault trace from {trace_file}: y = {y_fault:.0f} m at mid-x")
+    else:
+        y_fault = 0.5 * (gy[0] + gy[-1])
+        print(f"  no picked fault trace; sectioning through the middle, "
+              f"y = {y_fault:.0f} m")
     EXT_YZ = [gy.min() / 1000, gy.max() / 1000, gz.min() / 1000, gz.max() / 1000]
     EXT_XZ = [gx.min() / 1000, gx.max() / 1000, gz.min() / 1000, gz.max() / 1000]
 

@@ -104,3 +104,59 @@ python3 vp_from_strain.py --init txt_strikeslip/init_pos3.txt \
     --pos txt_strikeslip/pos_3.txt --density txt_strikeslip/density_3.txt \
     --alpha 125 --zmax -100 --out results/vp_model3_nocap.npz
 ```
+
+# PFC3D pipeline
+
+`pfc_pipeline.py` runs the whole chain in one command, replacing the
+manual loop of running PFC in the GUI, exporting a point .vtk, opening
+ParaView, applying Delaunay3D, saving a .vtu, and then running the
+analysis by hand.
+
+```
+python3 pfc_pipeline.py model.py --stem runs/ss01 --alpha 125 --zmax -100
+```
+
+| stage | what it runs |
+|---|---|
+| `pfc` | `model.py` inside PFC in batch; that script calls `pfc_export.export()` |
+| `mesh` | `make_mesh.py` — Qhull, not ParaView's Delaunay3D |
+| `strain` | `strain_analysis.py` — the full tensor |
+| `vp` | `vp_from_strain.py` — Vp, Vs, rho |
+| `seismic` | `seismic_section.py` — velocity sections and the synthetic section |
+
+Each stage is skippable (`--skip pfc`, `--only vp seismic`) so a failed
+run resumes rather than restarts. Stages 2-5 are tested end to end: run
+on the strike-slip export they reproduce `results/vp_model3_nocap.npz`
+exactly.
+
+`pfc_export.py` runs INSIDE PFC and writes the five text files this
+repository reads. Call it twice in a model script: once on the
+equilibrated pack with `reference=True`, once at the end.
+
+```python
+import sys; sys.path.append(r"C:\path\to\3D_IG-FEM")
+import pfc_export
+it.command("model solve ratio 1e-5")     # equilibrate under gravity
+pfc_export.export("runs/ss01", reference=True)
+it.command("model solve time 10.0")      # deform
+pfc_export.export("runs/ss01")
+```
+
+## The two things that depend on your installation
+
+**Launching PFC in batch.** The executable name and its batch arguments
+differ across PFC 6, 7 and 8. Record what works once, in
+`pfc_pipeline.json` next to the script:
+
+```json
+{"pfc_exe": "C:/Program Files/Itasca/PFC700/exe64/pfc3d700.exe",
+ "batch_args": ["call", "{script}"]}
+```
+
+or pass `--pfc-exe`, or set `PFC_EXE`.
+
+**The itasca accessors.** `pfc_export.py` reads positions, radii,
+densities and contact forces through `itasca.ballarray` where it exists
+and a per-ball loop otherwise. It has not been run against a PFC
+installation. If a getter raises, it names what it tried; run
+`help(itasca.ballarray)` inside PFC and fix that one function.
