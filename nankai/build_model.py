@@ -35,14 +35,37 @@ The reference export happens after settling, not before: the strain we
 want is the increment caused by convergence, not the pack's own initial
 compaction.
 
-THE OPEN QUESTION. The commands run; the wedge is not yet in
-equilibrium. On a 6,627-ball smoke pack the settling solve stalls at
-ratio-average ~2e-2 against its 1e-5 target, sheds about a third of its
-particles off the free toe, and comes out at alpha 1.68 deg against the
-section's 2.40 deg. Bond strengths, the bonding gap and the particle
-size are the knobs, and none of them is calibrated. Do not read a
-friction sweep as a calibration until the settled wedge holds the
-observed taper on its own.
+THE OPEN QUESTION is now a property problem, not a procedure one.
+
+Three procedural faults have been found and fixed, and the numbers are
+from the same 6,627-ball smoke pack throughout:
+
+  - `contact method bond gap 0.0` bonded almost nothing, because
+    relaxation exists to remove the overlaps it needs, and because a
+    contact at a positive gap does not exist at all unless the CMAT
+    proximity keeps it. Bonding across 0.2 r_min with a matching
+    proximity bonds 63% of contacts instead.
+  - the fixed-particle boundaries were 0.75 of a particle diameter thick
+    at smoke resolution: a sieve, not a wall. The pack poured through the
+    base and 92.5% of it was lost. Flooring them at three diameters
+    brought that to 7.1%.
+  - gravity was applied in one step to a pack bonded weightless.
+
+What none of that fixed is alpha_0, and the gravity ramp says why. The
+bonded skeleton loses 63% -> 39% of its bonds at ONE TENTH of gravity,
+and ends at 16% whether gravity is ramped in ten steps or applied in
+one. strength_check() prints the reason before the run starts: the wedge
+is 7,900 m thick, so rho*g*H at its base is 209 MPa, and the STRONGEST
+unit bonds at 10 MPa -- 4.8% of that. Every other unit is between 0.02%
+and 1.4%. A skeleton two orders of magnitude weaker than the weight it
+carries cannot stand, and no ordering of the commands will change it.
+
+So the next decision is one about the model, not the script: either the
+bond strengths in model_spec.PROPERTIES go up by orders of magnitude, or
+the wedge is accepted as frictional and the bonded fraction stops being
+treated as a measure of anything. Until alpha_0 agrees across friction
+values to 0.05 deg, friction_sweep.report() refuses to name a calibrated
+mu_b, and it is right to.
 """
 import os
 import sys
@@ -63,6 +86,7 @@ sys.path.insert(0, ROOT)
 import itasca as it                                    # noqa: E402  (PFC only)
 
 import pfc_export                                      # noqa: E402
+from nankai import taper                              # noqa: E402
 from nankai.model_spec import (Model, PROPERTIES, UNITS,
                                WEAK_FACTOR, KM)         # noqa: E402
 
@@ -77,9 +101,38 @@ SLAB = float(os.environ.get("NANKAI_SLAB", str(8.0 * R_MEAN)))   # 4 mean diamet
 SHORTENING = float(os.environ.get("NANKAI_SHORTENING", "3000.0"))   # m of convergence
 PLATE_VELOCITY = 1.0                # m/step in model time; quasi-static, not real
 BASAL_FRICTION = float(os.environ.get("NANKAI_BASAL_FRICTION", "0.15"))
-# a cap on the settling solve, so a smoke test does not sit in `model
-# solve` for hours. 0 means no cap: solve to the ratio and no sooner.
-SOLVE_CYCLES = int(os.environ.get("NANKAI_SOLVE_CYCLES", "0"))
+# The settling solve. ratio-average 1e-5 was never reached -- it stalled
+# two and a half orders of magnitude above it -- so the target is 1e-4
+# and the cycle count is capped, because an unreachable target with no
+# cap is a run that never ends.
+SOLVE_RATIO = float(os.environ.get("NANKAI_SOLVE_RATIO", "1e-4"))
+SOLVE_CYCLES = int(os.environ.get("NANKAI_SOLVE_CYCLES", "100000"))
+
+# THE BONDING GAP, and why the wedge would not stand up.
+#
+# `contact method bond gap 0.0` bonds a contact only where the particles
+# already overlap. Relaxation exists precisely to remove those overlaps,
+# so by the time it is asked, almost nothing qualifies: the pack is left
+# effectively cohesionless and spreads like sand.
+#
+# Worse, a contact at a positive gap does not EXIST unless the CMAT was
+# told to keep it. From the linear parallel bond model manual: "One can
+# ensure the existence of contacts between all pieces with a contact gap
+# less than a specified bonding gap by specifying it with the proximity
+# in the contact cmat default command." So the proximity below and the
+# bonding gap are the same number, and both are set from the smallest
+# particle radius rather than an absolute length, so the model stays
+# scale free when R_MEAN is changed for a smoke test.
+# Gravity is ramped rather than switched on. Applying it in one step to
+# a pack that was bonded weightless is an impulse: on the smoke pack it
+# broke 83% of the bonds in the first cycles. The ramp lets each
+# increment of weight be carried before the next arrives.
+GRAVITY_STEPS = int(os.environ.get("NANKAI_GRAVITY_STEPS", "10"))
+GRAVITY_STEP_CYCLES = int(os.environ.get("NANKAI_GRAVITY_STEP_CYCLES", "500"))
+
+R_MIN = R_MEAN / R_RATIO ** 0.5
+BOND_GAP_FRAC = float(os.environ.get("NANKAI_BOND_GAP_FRAC", "0.2"))
+BOND_GAP = BOND_GAP_FRAC * R_MIN
 # `ball distribute` hits its target porosity by OVERLAPPING particles --
 # PFC says so as it runs ("There may be huge overlaps!"). Bonding that
 # pack locks in the overlap forces and it blows itself apart; with
@@ -112,13 +165,13 @@ def census(stage):
     the export invariant that the reference and deformed states hold the
     same particles in the same order."""
     n = it.ball.count()
-    print(f"[census] {stage:<22} {n:>8,} balls  {it.contact.count():>9,} contacts",
-          flush=True)
+    print(f"[census] {stage:<22} {n:>8,} balls  "
+          f"{count_contacts():>9,} contacts "
+          f"({count_contacts(False):,} active)", flush=True)
     return n
 
 
 def build():
-    gx, gy, gz = m.gravity()
     x_lo, x_hi = m.x0 * KM, m.x1 * KM
     z_lo = -m.envelope(np.array([m.x1]))[1][0] * KM - 500.0
     z_hi = -m.envelope(np.array([m.x0]))[0][0] * KM + 500.0
@@ -137,10 +190,15 @@ def build():
     cmd(f"model domain extent {cx.min()-1000:.0f} {cx.max()+1000:.0f} "
         f"0 {SLAB:.0f} {cz.min()-1000:.0f} {cz.max()+1000:.0f} "
         f"condition destroy periodic destroy")
-    cmd(f"model gravity {gx:.6f} {gy:.6f} {gz:.6f}")
+    # NO GRAVITY YET. The pack is relaxed weightless: `ball distribute`
+    # leaves overlaps, and letting those overlaps unload under gravity at
+    # the same time turns the relaxation into a collapse. Gravity is
+    # switched on in apply_gravity(), after the pack is bonded.
+    cmd("model gravity 0 0 0")
     cmd("model random 10101")
-    cmd("contact cmat default model linearpbond "
-        "method deformability emod 1e9 kratio 1.5")
+    cmd(f"contact cmat default model linearpbond "
+        f"method deformability emod 1e9 kratio 1.5 "
+        f"proximity {BOND_GAP:.4f}")
 
     # fill the bounding box, then delete everything outside the envelope
     cmd(f"ball distribute porosity 0.38 radius {R_MEAN/R_RATIO**0.5:.3f} "
@@ -220,8 +278,16 @@ def group_balls():
     back = m.backstop(x, z)
     set_group_mask(back, "backstop", "bc")
     set_group_mask(~back, "interior", "bc")
-    print(f"[groups] {conv.sum():,} conveyor, {back.sum():,} backstop, "
+    d = 2.0 * R_MEAN
+    print(f"[groups] {conv.sum():,} conveyor ({m.conveyor_thickness():.0f} m "
+          f"= {m.conveyor_thickness() / d:.1f} particle diameters), "
+          f"{back.sum():,} backstop ({m.backstop_width():.0f} m "
+          f"= {m.backstop_width() / d:.1f} diameters), "
           f"{weak.sum():,} in seeded faults", flush=True)
+    if min(m.conveyor_thickness(), m.backstop_width()) < 2.0 * d:
+        print("[groups] WARNING: a boundary thinner than two particle "
+              "diameters is a sieve, not a wall -- the pack pours through it.",
+              flush=True)
 
 
 def hold_boundaries():
@@ -239,7 +305,12 @@ def hold_boundaries():
 
 
 def relax():
-    """Push out the overlaps `ball distribute` left behind, unbonded."""
+    """Push out the overlaps `ball distribute` left behind.
+
+    Weightless and unbonded: gravity is still 0 0 0 from build(), so the
+    only thing driving the pack is its own overlap, and it has nothing to
+    collapse under while it unloads.
+    """
     cmd("model clean")
     n0 = census("before relaxation")
     if RELAX_CYCLES:
@@ -262,6 +333,39 @@ def in_group(name, slot):
         return int(np.asarray(ba.in_group(name, slot)).sum())
     except (ImportError, AttributeError, TypeError):
         return sum(1 for b in it.ball.list() if b.in_group(name, slot))
+
+
+def strength_check():
+    """Compare the bond strengths against the weight they have to carry.
+
+    A bonded pack stands up only if its bonds can carry its own weight.
+    The wedge is kilometres thick, so the stress at its base is rho*g*H,
+    and that is the number the bond strengths have to be read against --
+    not against each other. This is printed before the run commits to
+    anything, because if the margin is negative no amount of procedure
+    will keep the skeleton intact: a gravity ramp shows it breaking at
+    10% of g just as a single step shows it breaking at 100%.
+    """
+    x = np.linspace(m.x0, m.x1, 400)
+    thickness = (m._d("decollement", x) - m._d("seafloor", x)).max() * KM
+    rho = max(p["density"] for p in PROPERTIES.values())
+    sigma = rho * 9.81 * thickness
+
+    strongest = max(PROPERTIES.items(), key=lambda kv: kv[1]["tensile"])
+    print(f"[strength] wedge up to {thickness:,.0f} m thick: rho*g*H = "
+          f"{sigma / 1e6:.0f} MPa at its base", flush=True)
+    for name, p in sorted(PROPERTIES.items(), key=lambda kv: -kv[1]["tensile"]):
+        print(f"[strength]   {name:<12} pb_ten {p['tensile'] / 1e6:7.2f} MPa "
+              f"= {p['tensile'] / sigma:8.4f} x the basal stress", flush=True)
+    if strongest[1]["tensile"] < sigma:
+        print(f"[strength] WARNING: even {strongest[0]}, the strongest unit, "
+              f"bonds at {strongest[1]['tensile'] / sigma:.4f} of the basal "
+              f"stress. The bonded skeleton CANNOT carry the self weight and "
+              f"will shatter as gravity comes on, whether it is ramped or "
+              f"not. Raise the strengths in model_spec.PROPERTIES, or accept "
+              f"a frictional wedge and stop reporting a bonded fraction.",
+              flush=True)
+    return sigma
 
 
 def assign_densities():
@@ -294,6 +398,7 @@ def assign_contacts():
     # per-unit properties below land on a populated contact list.
     cmd("model clean")
     census("before contact properties")
+
 
     # A contact is inside `range group X slot 'unit'` if EITHER of its
     # two balls is in X, so a contact spanning a unit boundary matches
@@ -334,18 +439,153 @@ def assign_contacts():
           flush=True)
 
 
-def settle():
+def bond():
+    """Install the parallel bonds, across a gap rather than on overlap.
+
+    `gap 0.0` bonds only what already overlaps, and relaxation has just
+    removed the overlaps, so it leaves a cohesionless pack. The gap is a
+    fraction of the smallest radius and matches the CMAT proximity, so
+    the contacts it needs are there to be bonded.
+    """
     cmd("model calm")
-    cmd("contact method bond gap 0.0")
+    cmd(f"contact method bond gap {BOND_GAP:.4f}")
+    n, bonded = bond_census()
+    print(f"[bond] gap {BOND_GAP:.1f} m = {BOND_GAP_FRAC:.2f} x r_min "
+          f"({R_MIN:.1f} m): {bonded:,} of {n:,} contacts bonded "
+          f"({100.0 * bonded / n if n else 0.0:.1f}%)", flush=True)
+    return bonded
+
+
+def contacts(all_contacts=True):
+    """Ball-ball contact iterator.
+
+    Two things the signature will not forgive. The FIRST argument is the
+    process name, not the contact type: passing "ball-ball" there raises
+    `ValueError: Unknown process name`. And only that first argument is
+    positional -- `type` and `all` must be passed by keyword, or PFC
+    answers `TypeError: function takes at most 1 argument (3 given)`.
+
+    `all` includes virtual contacts, those inside the CMAT proximity but
+    not yet touching. They matter here: they are exactly the contacts the
+    bonding gap is meant to catch.
+    """
+    return it.contact.list("mechanical", type=it.BallBallContact,
+                           all=all_contacts)
+
+
+def count_contacts(all_contacts=True):
+    return it.contact.count("mechanical", type=it.BallBallContact,
+                            all=all_contacts)
+
+
+def bond_census():
+    """(contacts, bonded). pb_state is 0 unbonded, 1 broke in tension,
+    2 broke in shear, 3 bonded, so only 3 counts as a live bond."""
+    n = bonded = 0
+    for c in contacts():
+        n += 1
+        try:
+            bonded += (c.prop("pb_state") == 3)
+        except Exception:
+            pass
+    return n, bonded
+
+
+def apply_gravity():
+    """Bring gravity up, now that there is a bonded skeleton to carry it.
+
+    Until this point the model has been weightless. Full gravity in one
+    command is an impulse on a pack that has never felt any, so it is
+    ramped and the bond count is reported at each step: a ramp that still
+    shatters the skeleton says the bonds are too weak for the self
+    weight, which is a property problem, not a procedure one.
+    """
+    gx, gy, gz = m.gravity()
+    steps = max(1, GRAVITY_STEPS)
+    for i in range(1, steps + 1):
+        f = float(i) / steps
+        cmd(f"model gravity {gx * f:.6f} {gy * f:.6f} {gz * f:.6f}")
+        if GRAVITY_STEP_CYCLES:
+            cmd(f"model cycle {GRAVITY_STEP_CYCLES}")
+        n, bonded = bond_census()
+        print(f"[gravity] {100.0 * f:5.1f}% of g   {it.ball.count():>7,} balls   "
+              f"{bonded:>7,} of {n:,} contacts bonded "
+              f"({100.0 * bonded / n if n else 0.0:.1f}%)", flush=True)
+    print(f"[gravity] full g = ({gx:+.3f}, {gy:.3f}, {gz:.3f}) m/s2, tilted "
+          f"{m.beta:.2f} deg with the decollement", flush=True)
+
+
+def settle():
     # `model solve ratio` is rejected by PFC 6.0 -- it answers "Bad
     # conversion of parameter number 3 (ratio)" and lists what it will
     # take: ratio-average, ratio-local, ratio-maximum. ratio-average is
     # the usual equilibrium criterion, the mean unbalanced force ratio.
-    cmd("model solve ratio-average 1e-5"
+    before = it.cycle()
+    cmd(f"model solve ratio-average {SOLVE_RATIO:.3g}"
         + (f" cycles {SOLVE_CYCLES}" if SOLVE_CYCLES else ""))
+    spent = it.cycle() - before
     census("after settling")
     cmd("ball attribute displacement 0 0 0")           # zero the datum
-    print("[settle] equilibrated under tilted gravity", flush=True)
+    return spent
+
+
+def report_settling(n_built, bonded_at_bond, cycles_spent):
+    """What the settled wedge actually is, before any convergence.
+
+    Three numbers, because between them they say whether the run is worth
+    continuing: how much of the bonded skeleton survived gravity, how
+    much of the pack was lost, and whether the surface still matches the
+    section it was built from.
+    """
+    n_now = it.ball.count()
+    lost = n_built - n_now
+    n_contacts, bonded = bond_census()
+    broke = bonded_at_bond - bonded
+
+    a0, _, _ = taper.measure(ball_positions(), m.beta)
+    target = taper.target_alpha()
+
+    print("\n[settled] --------------------------------------------------",
+          flush=True)
+    print(f"[settled] bonded contacts   {bonded:,} of {n_contacts:,} "
+          f"({100.0 * bonded / n_contacts if n_contacts else 0.0:.1f}%), "
+          f"{broke:,} broke under gravity", flush=True)
+    print(f"[settled] particles lost    {lost:,} of {n_built:,} "
+          f"({100.0 * lost / n_built if n_built else 0.0:.1f}%)", flush=True)
+    print(f"[settled] alpha_0           {a0:.3f} deg  "
+          f"(section: {target:.3f} deg, error {a0 - target:+.3f})", flush=True)
+
+    # Did the solve converge, or did it merely stop? This matters more
+    # than it looks. On the smoke pack 300 cycles leave alpha_0 at 2.451
+    # deg, 0.049 off the section, and lose no particles; 30,000 cycles
+    # leave it at 6.973 deg and lose 8.3%. A wedge whose answer depends
+    # on the cycle cap is creeping, not equilibrating, and the cap is
+    # then a tuning knob that flatters the result.
+    hit_cap = SOLVE_CYCLES and cycles_spent >= SOLVE_CYCLES
+    print(f"[settled] settling solve    {cycles_spent:,} cycles"
+          f"{' -- STOPPED AT THE CAP' if hit_cap else ' -- reached the ratio'}",
+          flush=True)
+    if hit_cap:
+        print(f"[settled] WARNING: the solve hit its cycle cap instead of "
+              f"reaching ratio-average {SOLVE_RATIO:.0e}, so this is not an "
+              f"equilibrium and alpha_0 above is only where the wedge had got "
+              f"to. Re-run with a different NANKAI_SOLVE_CYCLES: if alpha_0 "
+              f"moves, the wedge is creeping and the cap is choosing the "
+              f"answer.", flush=True)
+
+    # alpha_0 is measured BEFORE any convergence, from the geometry the
+    # model was built to. It should therefore be the section's alpha, and
+    # it should not depend on basal friction at all. If it does, the
+    # settling stage is what the friction sweep is measuring.
+    if abs(a0 - target) > 0.25:
+        print(f"[settled] WARNING: alpha_0 is {abs(a0 - target):.2f} deg off "
+              f"the section before any convergence. The wedge is not holding "
+              f"the geometry it was built to, so a friction sweep measures "
+              f"settling, not friction.", flush=True)
+    print("[settled] --------------------------------------------------\n",
+          flush=True)
+    return dict(alpha_0=a0, target=target, lost=lost, n_built=n_built,
+                bonded=bonded, contacts=n_contacts)
 
 
 def drive():
@@ -360,12 +600,17 @@ def drive():
 
 if __name__ == "__main__":
     build()
+    strength_check()
+    n_built = it.ball.count()
     group_balls()
     assign_densities()
     hold_boundaries()
-    relax()
+    relax()                  # weightless: overlaps out before anything else
     assign_contacts()
-    settle()
+    bonded_at_bond = bond()  # across a gap, not on overlap
+    apply_gravity()          # only now does the model have weight
+    cycles_spent = settle()
+    report_settling(n_built, bonded_at_bond, cycles_spent)
     pfc_export.export(STEM, reference=True)
     drive()
     pfc_export.export(STEM)

@@ -132,6 +132,44 @@ and free surface are open, and the base and landward backstop are layers
 of fixed particles. `model domain condition` takes one keyword per
 direction: x, y, z.
 
+**`contact method bond gap 0.0` leaves a cohesionless pack**, and the
+reason is two-sided. Relaxation exists to remove the overlaps that
+`gap 0.0` needs, so by the time bonding is asked almost nothing
+qualifies; and a contact at a positive gap DOES NOT EXIST unless the
+CMAT keeps it. From the linearpbond manual: "One can ensure the
+existence of contacts between all pieces with a contact gap less than a
+specified bonding gap by specifying it with the proximity in the
+contact cmat default command." So `proximity` and the bonding gap are
+the same number. At 0.2 r_min that bonds 63% of contacts instead of
+almost none.
+
+**A boundary of fixed particles must be several particles THICK.**
+`CONVEYOR_THICKNESS` and `BACKSTOP_WIDTH` are geological lengths in
+metres, which at the production r_mean of 33 m are 4.5 and 9.1 particle
+diameters and fine — but at the r_mean of 200 m used for a smoke test
+the conveyor was 0.75 of a diameter. A sieve, not a wall: the pack
+poured through its own base and 92.5% of it was destroyed. They are now
+floored at `MIN_BOUNDARY_DIAMETERS` particle diameters, which brought
+that loss to 7.1% and changes nothing at production resolution.
+
+**`it.contact.list`'s first argument is the PROCESS name**, so
+`list("ball-ball")` raises `ValueError: Unknown process name`. Only that
+first argument is positional — `type` and `all` must be keywords, or
+PFC answers `TypeError: function takes at most 1 argument (3 given)`.
+`all=True` includes virtual contacts, those inside the proximity but not
+touching, which is why `it.contact.count()` reports far fewer contacts
+than `contact method bond` says it applied to. `pb_state` is 0
+unbonded, 1 broke in tension, 2 broke in shear, 3 bonded.
+
+**Read the bond strengths against rho*g*H, not against each other.**
+The Nankai wedge is 7,900 m thick, so the stress at its base is 209 MPa,
+and the strongest unit in `PROPERTIES` bonds at 10 MPa — 4.8% of it.
+The rest are between 0.02% and 1.4%. Such a skeleton loses 63% -> 39% of
+its bonds at ONE TENTH of gravity and ends at 16% whether gravity is
+ramped over ten steps or applied in one, so a shattering pack is a
+property problem and no reordering of the commands will fix it.
+`build_model.strength_check()` prints this before the run starts.
+
 **Chord ≠ regression.** `nankai/geometry.summary()` reports the surface
 slope as a two-point chord; the runs are measured by least squares, and
 the sea floor is convex, so they differ by 0.3°. Compare against
@@ -158,17 +196,18 @@ Verified against PFC 6.00 Release 008 on this machine:
 
 NOT verified, and this is now the real open question:
 
-- the wedge is not in equilibrium. On a 6,627-ball smoke pack the
-  settling solve stalls at ratio-average ~2e-2 against a 1e-5 target,
-  sheds a third of its particles off the free toe, and settles to
-  alpha 1.68° against the section's 2.40°. Bond strengths, the bonding
-  gap and the particle size are uncalibrated. A friction sweep is not a
-  calibration until the settled wedge holds the observed taper.
-- `strain_analysis.py` on a pack this coarse: 69 particles end up with
-  no supporting element and `splu` dies with "Factor is exactly
-  singular". The mesh stage is fine. Probably a resolution artefact of
-  the deliberately tiny smoke model, but it has not been shown to go
-  away at full resolution.
+- the wedge is still not in equilibrium, but the cause has moved from
+  the script to the properties. Bonding across a gap, boundaries three
+  particles thick and a ramped gravity took the particle loss from 92.5%
+  to 8.3% and the bonded fraction from ~0 to 63% at bonding — and
+  alpha_0 is still 4.6° off the section, because the bonds carry at most
+  4.8% of rho*g*H and shatter at a tenth of gravity. Raising the bond
+  strengths in `model_spec.PROPERTIES`, or dropping the bonded wedge for
+  a frictional one, is a modelling decision and has not been made.
+- `friction_sweep.report()` now refuses to name a calibrated mu_b until
+  alpha_0 agrees across the swept values to `ALPHA0_TOLERANCE` (0.05°).
+  On the last sweep it spread 1.672°. Do not quote a crossing until
+  that gate passes.
 
 ## Conventions
 

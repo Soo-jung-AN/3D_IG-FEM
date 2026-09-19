@@ -37,6 +37,14 @@ ROOT = os.path.dirname(HERE)
 RUNS = os.path.join(ROOT, "runs")
 SHORT_SHORTENING = 800.0        # m -- enough to see the surface respond
 
+# alpha_0 is the surface slope BEFORE any convergence. Every run is built
+# from the same digitised section, so alpha_0 is the same number in every
+# run by construction -- unless the settling stage is moving the surface,
+# in which case what the sweep measures is settling, not friction. This
+# is the gate: until the spread in alpha_0 across the swept friction
+# values is below it, report() refuses to name a calibrated mu_b.
+ALPHA0_TOLERANCE = 0.05         # degrees
+
 
 def stem_for(mu):
     return os.path.join(RUNS, f"sweep_mu{mu:.3f}")
@@ -91,10 +99,32 @@ def report(rows):
               f"{r['d_alpha']:+9.3f} {r['taper_final']:9.3f} {v:>22}")
     d = np.array([r["d_alpha"] for _, r in rows])
     mus = np.array([mu for mu, _ in rows])
+    a0 = np.array([r["alpha_initial"] for _, r in rows])
+    spread = float(a0.max() - a0.min()) if len(a0) > 1 else 0.0
+
+    crossing = None
     if len(mus) > 1 and d.min() < 0 < d.max():
         k = np.argsort(mus)
-        print(f"\nd(alpha) crosses zero at mu_b = "
-              f"{np.interp(0.0, d[k], mus[k]):.3f}")
+        crossing = float(np.interp(0.0, d[k], mus[k]))
+
+    print(f"\nalpha_0 spread across the sweep: {spread:.3f} deg "
+          f"(tolerance {ALPHA0_TOLERANCE:.2f})")
+    if spread > ALPHA0_TOLERANCE:
+        print("\n  *** NOT A CALIBRATION ***")
+        print("  alpha_0 is the surface slope before any convergence.")
+        print("  Every run starts from the same digitised section, so it")
+        print("  has to be the same number in all of them. It is not,")
+        print("  which means the settling stage is moving the surface and")
+        print("  d(alpha) is measuring settling, not basal friction.")
+        if crossing is not None:
+            print("  (d(alpha) would cross zero at mu_b = %.3f. "
+                  "Do not use it.)" % crossing)
+        print("  Fix settling first: build_model.report_settling prints")
+        print("  the bonded fraction, the particles lost and alpha_0.")
+    elif crossing is not None:
+        print(f"\nd(alpha) crosses zero at mu_b = {crossing:.3f}")
+        print(f"  alpha_0 agrees to {spread:.3f} deg across the sweep, "
+              f"so this is a calibration.")
     return mus, d
 
 

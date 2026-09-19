@@ -84,6 +84,16 @@ CONVEYOR_THICKNESS = 300.0        # m of velocity-controlled particles
 # against; the conveyor is the base it is carried on.
 BACKSTOP_WIDTH = 600.0            # m of fixed particles at the landward end
 
+# A boundary made of fixed particles has to be at least a few particles
+# THICK, or it is a sieve rather than a wall and the pack pours through
+# it. At the production r_mean of 33 m the two thicknesses above are 4.5
+# and 9.1 particle diameters and this floor never binds; at the r_mean of
+# 200 m used for a smoke test the conveyor would be 0.75 of a diameter,
+# which is what turned one smoke run into a 92.5% particle loss. The
+# thicknesses are therefore the larger of the geological value and this
+# many particle diameters.
+MIN_BOUNDARY_DIAMETERS = 3.0
+
 
 def mean_dip():
     """Mean décollement dip over the section, degrees."""
@@ -185,19 +195,30 @@ class Model:
                                         self.thrust_polyline(x_top, dip)) <= THRUST_HALF_WIDTH
         return w
 
+    def _boundary(self, nominal):
+        """A boundary thickness in m, floored at MIN_BOUNDARY_DIAMETERS
+        particle diameters so the layer is a wall and not a sieve."""
+        return max(nominal, MIN_BOUNDARY_DIAMETERS * 2.0 * self.r_mean)
+
+    def backstop_width(self):
+        return self._boundary(BACKSTOP_WIDTH)
+
+    def conveyor_thickness(self):
+        return self._boundary(CONVEYOR_THICKNESS)
+
     def backstop(self, x_m, z_m):
         """The rigid landward buttress. In the rotated model frame
         gravity has a landward component and the conveyor drives
         landward, so this is the end the wedge is pushed against and the
         end that has to be held. The toe is deliberately left free."""
-        return np.asarray(x_m) / KM >= self.x1 - BACKSTOP_WIDTH / KM
+        return np.asarray(x_m) / KM >= self.x1 - self.backstop_width() / KM
 
     def conveyor(self, x_m, z_m):
         """The velocity-controlled basal layer: the bottom of the
         underthrust section, which carries sediment under the wedge."""
         x_km, d_km = np.asarray(x_m) / KM, -np.asarray(z_m) / KM
         tc = self._d("top_crust", x_km)
-        return (d_km <= tc) & (d_km >= tc - CONVEYOR_THICKNESS / KM)
+        return (d_km <= tc) & (d_km >= tc - self.conveyor_thickness() / KM)
 
     # ---- packing ------------------------------------------------------
     def n_particles(self, packing_fraction=0.6):
