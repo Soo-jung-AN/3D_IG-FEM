@@ -78,6 +78,60 @@ model. Build the zero-strain control and regress it out
 (`section_attribution.py`) before comparing strain methods through an
 image.
 
+**PFC 6.0 only auto-calls a file whose extension it recognises.**
+`pfc3d600_console.exe model.py` loads, prints `pfc3d>` and waits
+forever. It ignores extra arguments (`exe call model.py` hangs the same
+way) and does not read stdin. `pfc_pipeline.write_wrapper` generates the
+.dat that calls a shim that runs the model, which is the only form that
+works. Three more things about that path, each of which cost a run:
+`program call` on a .py leaves `__file__` UNDEFINED and `__name__` not
+`"__main__"`; an error inside a called file aborts the rest of the .dat,
+including its `program quit`, so an unattended batch sits at the prompt;
+and PFC exits 0 even after a Python traceback, so the return code proves
+nothing and only the exports do.
+
+**PFC 6.0 embeds numpy 1.13.** No `np.trapezoid`, no `np.random.default_rng`,
+no `return_indices` on `np.intersect1d`. Anything imported by a model
+script has to run there as well as on a current numpy. `np.trapezoid` in
+`model_spec.n_particles` broke on both, since it needs numpy 2.0.
+
+**`emod`, `kratio`, `pb_emod` and `pb_kratio` are READ-ONLY** properties
+of linearpbond — `contact property pb_kratio ...` answers `is read
+only!` and aborts the run. Stiffness goes through the methods,
+`contact method deformability` and `contact method pb_deformability`.
+Only the strengths and `fric` are properties. Two more rejections from
+the same file: `model solve ratio` is not accepted (it wants
+`ratio-average`, `ratio-local` or `ratio-maximum`), and `model cycle i
+calm` needs the interval, `model cycle i calm i2`. `Ball.set_group`
+takes NO keyword arguments, so `set_group(name, slot="unit")` is a
+TypeError; pass the slot positionally, or use the vectorised
+`ballarray.set_group(mask, name, slot)`.
+
+**Contact properties do not survive relaxation.** Cycling the pack to
+push out the overlaps `ball distribute` leaves behind destroys and
+recreates most of the contact list — 19,248 contacts before, 18,468
+after, and the recreated ones silently revert to the cmat default.
+Assign per-unit contact properties AFTER relaxing, never before. Ball
+attributes do survive, and density has to be set BEFORE the first cycle:
+an unassigned ball has zero inertial mass and PFC refuses to cycle.
+
+**A contact matches `range group X slot 'unit'` if EITHER of its balls
+is in X**, so an interface contact matches both units and keeps whichever
+was applied LAST. On the smoke pack the per-unit applications sum to
+38,553 over 32,283 contacts, so ~6,300 are interfaces decided by
+application order. `build_model.assign_contacts` applies strongest
+first so the weaker unit wins — otherwise dict order silently
+overwrites the décollement with the underthrust section beneath it.
+
+**A DEM wedge with no walls falls out of the domain.** `model domain
+... condition destroy` deletes the escapees without a word, so the
+symptom is an export of zero particles, not an error. The Nankai model
+has no walls at all: y is PERIODIC (which is what makes the slab plane
+strain — with `destroy` in y the pack bleeds out of the sides), the toe
+and free surface are open, and the base and landward backstop are layers
+of fixed particles. `model domain condition` takes one keyword per
+direction: x, y, z.
+
 **Chord ≠ regression.** `nankai/geometry.summary()` reports the surface
 slope as a two-point chord; the runs are measured by least squares, and
 the sea floor is convex, so they differ by 0.3°. Compare against
@@ -91,17 +145,30 @@ ParaView mesh; the strain against an independent SSPX estimate; the
 pipeline stages 2–5 reproducing `results/vp_model3_nocap.npz` exactly;
 `nankai/taper.py` recovering imposed surface tilts to 0.000°.
 
-NOT verified, because there is no PFC or ParaView in the environment
-this was written in:
+Verified against PFC 6.00 Release 008 on this machine:
 
-- `pfc_export.py` — the `itasca` accessors. It tries `ballarray` first
-  and a per-ball loop second, and raises naming what it tried.
-- `nankai/build_model.py` — every `it.command(...)` string. PFC 6/7
-  syntax, never executed.
-- the PFC batch invocation itself, which differs across PFC 6/7/8 and
-  comes from `pfc_pipeline.json`, `--pfc-exe` or `PFC_EXE`.
+- the batch invocation, now recorded in `pfc_pipeline.json` rather than
+  guessed at.
+- `pfc_export.py` — all five `ballarray` accessors exist and return the
+  documented shapes; the per-ball fallback names exist too.
+- `nankai/build_model.py` — every `it.command(...)` string executes, and
+  the sequence runs end to end to a matched pair of exports.
+- `nankai/friction_sweep.py --run` — launches PFC per friction value and
+  measures the result.
 
-Fix these locally and the rest holds.
+NOT verified, and this is now the real open question:
+
+- the wedge is not in equilibrium. On a 6,627-ball smoke pack the
+  settling solve stalls at ratio-average ~2e-2 against a 1e-5 target,
+  sheds a third of its particles off the free toe, and settles to
+  alpha 1.68° against the section's 2.40°. Bond strengths, the bonding
+  gap and the particle size are uncalibrated. A friction sweep is not a
+  calibration until the settled wedge holds the observed taper.
+- `strain_analysis.py` on a pack this coarse: 69 particles end up with
+  no supporting element and `splu` dies with "Factor is exactly
+  singular". The mesh stage is fine. Probably a resolution artefact of
+  the deliberately tiny smoke model, but it has not been shown to go
+  away at full resolution.
 
 ## Conventions
 

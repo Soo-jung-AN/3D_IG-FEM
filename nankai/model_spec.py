@@ -34,6 +34,11 @@ from nankai import geometry as G
 
 KM = 1000.0
 
+# numpy renamed trapz -> trapezoid in 2.0. PFC 6.0 embeds numpy 1.13, so
+# this module has to run on both: it is imported by build_model.py inside
+# PFC as well as by the analysis scripts outside it.
+_trapz = getattr(np, "trapezoid", None) or np.trapz
+
 # unit codes
 UNITS = {"kumano": 1, "inner_prism": 2, "outer_prism": 3,
          "decollement": 4, "underthrust": 5, "crust": 6}
@@ -75,6 +80,14 @@ THRUSTS = [(1.0, 38.0), (2.5, 36.0), (4.0, 34.0), (6.0, 32.0),
 
 DECOLLEMENT_THICKNESS = 200.0     # m, the weak basal layer
 CONVEYOR_THICKNESS = 300.0        # m of velocity-controlled particles
+
+# The model has no walls: periodic in y, free at the toe, and held at the
+# base and the landward end by layers of fixed particles. A wall spanning
+# the slab would intersect the periodic boundary, which PFC does not
+# allow, and a rough particle base is the usual choice for a DEM wedge
+# anyway. BACKSTOP_WIDTH is the landward buttress the wedge is pushed
+# against; the conveyor is the base it is carried on.
+BACKSTOP_WIDTH = 600.0            # m of fixed particles at the landward end
 
 
 def mean_dip():
@@ -177,6 +190,13 @@ class Model:
                                         self.thrust_polyline(x_top, dip)) <= THRUST_HALF_WIDTH
         return w
 
+    def backstop(self, x_m, z_m):
+        """The rigid landward buttress. In the rotated model frame
+        gravity has a landward component and the conveyor drives
+        landward, so this is the end the wedge is pushed against and the
+        end that has to be held. The toe is deliberately left free."""
+        return np.asarray(x_m) / KM >= self.x1 - BACKSTOP_WIDTH / KM
+
     def conveyor(self, x_m, z_m):
         """The velocity-controlled basal layer: the bottom of the
         underthrust section, which carries sediment under the wedge."""
@@ -188,7 +208,7 @@ class Model:
     def n_particles(self, packing_fraction=0.6):
         x = np.linspace(self.x0, self.x1, 400)
         top, bot = self.envelope(x)
-        area = np.trapezoid(bot - top, x) * KM ** 2
+        area = _trapz(bot - top, x) * KM ** 2
         vol = area * self.slab
         return int(packing_fraction * vol / (4 / 3 * np.pi * self.r_mean ** 3))
 
@@ -232,7 +252,7 @@ if __name__ == "__main__":
     u, w, c = m.unit(px, pz), m.weak(px, pz), m.conveyor(px, pz)
     tt = taper_target()
 
-    print(f"beta (mean décollement dip)  {m.beta:.2f} deg")
+    print(f"beta (mean decollement dip)  {m.beta:.2f} deg")   # ASCII: cp949 consoles
     print(f"gravity in the model frame   ({m.gravity()[0]:+.3f}, 0, {m.gravity()[2]:.3f}) m/s2")
     print(f"  the +x component is landward, i.e. down-dip on the flattened base")
     print(f"particles at r = {m.r_mean:.0f} m, slab {m.slab:.0f} m: {m.n_particles():,}")

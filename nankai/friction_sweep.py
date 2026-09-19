@@ -13,10 +13,14 @@ d(alpha) crosses zero.
 
 --run launches PFC once per value with NANKAI_BASAL_FRICTION set, into
 runs/sweep_mu<value>_*.txt. The PFC invocation comes from the same
-pfc_pipeline.json as the main pipeline.
+pfc_pipeline.json as the main pipeline, via pfc_pipeline.pfc_argv, so
+the PFC-6 .dat wrapper is built the same way in both places.
+
+The runs are sequential and each is a full model, so a five-value sweep
+is a long job. Set NANKAI_R_MEAN (and NANKAI_SLAB with it) to sweep at a
+coarser resolution first if you only want the sign of d(alpha).
 """
 import argparse
-import json
 import os
 import subprocess
 import sys
@@ -24,6 +28,7 @@ import sys
 import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import pfc_pipeline
 from nankai import taper
 from nankai.model_spec import KM, Model
 
@@ -38,24 +43,27 @@ def stem_for(mu):
 
 
 def launch(mu):
-    cfg = {}
-    cfg_path = os.path.join(ROOT, "pfc_pipeline.json")
-    if os.path.exists(cfg_path):
-        cfg = json.load(open(cfg_path))
+    cfg = pfc_pipeline.load_config()
     exe = os.environ.get("PFC_EXE") or cfg.get("pfc_exe")
     if not exe:
         raise SystemExit("PFC executable not known: set PFC_EXE or write "
                          "pfc_pipeline.json (see pfc_pipeline.py).")
-    args = cfg.get("batch_args", ["call", "{script}"])
     script = os.path.join(HERE, "build_model.py")
     env = dict(os.environ, NANKAI_BASAL_FRICTION=f"{mu:.4f}",
                NANKAI_STEM=stem_for(mu),
                NANKAI_SHORTENING=f"{SHORT_SHORTENING:.1f}")
-    cmd = [exe] + [s.format(script=script) for s in args]
+    cmd = pfc_pipeline.pfc_argv(exe, cfg, script)
     print(f"\n=== mu_b = {mu:.3f} ===\n$ {' '.join(cmd)}", flush=True)
     r = subprocess.run(cmd, env=env)
     if r.returncode != 0:
         raise SystemExit(f"PFC failed at mu_b = {mu:.3f} (exit {r.returncode})")
+    # PFC quits 0 even when the Python it ran raised, so the return code
+    # is not evidence that anything was written. Check the export.
+    if load(mu) is None:
+        raise SystemExit(
+            f"PFC returned 0 at mu_b = {mu:.3f} but wrote no export to "
+            f"{stem_for(mu)}_*.txt -- a Python traceback inside PFC does "
+            f"not set the exit code, so read the PFC output above for it.")
 
 
 def load(mu):
@@ -72,8 +80,12 @@ def report(rows):
     print(f"{'mu_b':>6} {'alpha_0':>9} {'alpha_1':>9} {'d_alpha':>9} "
           f"{'taper_1':>9} {'verdict':>22}")
     for mu, r in rows:
-        v = ("steepening — friction too high" if r["d_alpha"] > 0.05 else
-             "spreading — friction too low" if r["d_alpha"] < -0.05 else
+        # ASCII only: this line is printed, and a Windows console on a
+        # Korean locale is cp949, which cannot encode an em dash --
+        # the report died with UnicodeEncodeError after a sweep had
+        # already spent the PFC time.
+        v = ("steepening - friction too high" if r["d_alpha"] > 0.05 else
+             "spreading - friction too low" if r["d_alpha"] < -0.05 else
              "stable  <-- calibrated")
         print(f"{mu:6.3f} {r['alpha_initial']:9.3f} {r['alpha_final']:9.3f} "
               f"{r['d_alpha']:+9.3f} {r['taper_final']:9.3f} {v:>22}")
