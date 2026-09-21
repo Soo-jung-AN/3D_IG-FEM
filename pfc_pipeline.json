@@ -1,0 +1,23 @@
+{
+  "_comment": [
+    "Verified against this machine on 2026-09-20: PFC3D 6.00 Release 008,",
+    "licence 262-082-0013-24092. Do not guess these again.",
+    "",
+    "pfc3d600_console.exe auto-calls the ONE file given as its argument,",
+    "but only if the extension is one the command processor recognises.",
+    "Hand it a .py and it loads, prints the 'pfc3d>' prompt and waits",
+    "forever. It also ignores extra arguments ('exe call foo.py' hangs the",
+    "same way) and does not read commands from stdin. So the model script",
+    "is run from a one-line .dat wrapper containing",
+    "    program call '<script>'",
+    "which is how PFC's own shipped examples run Python (see",
+    "datafiles3d/.../*.dat calling analytical_fric.py). pfc_pipeline.py",
+    "writes that wrapper when it sees {wrapper} in batch_args.",
+    "",
+    "NOTE: a Python traceback inside PFC does NOT set a non-zero exit",
+    "code -- the console still quits 0. The pipeline's check that the",
+    "export files exist is the real pass/fail test, not the return code."
+  ],
+  "pfc_exe": "C:/Program Files/Itasca/PFC600/exe64/pfc3d600_console.exe",
+  "batch_args": ["{wrapper}"]
+}

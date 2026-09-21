@@ -1,0 +1,748 @@
+<title>The Observable Ladder</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&family=Archivo:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --paper:#f4f5f3; --card:#fbfcfa; --ink:#16191c; --muted:#5c6570;
+  --rule:#d3d8d4; --hair:#e4e8e4;
+  --accent:#15616d; --accent-wash:#e0edee;
+  --flag:#9b3a2a; --flag-wash:#f3e3df;
+  --ok:#2f6b4f;
+  --serif:"Source Serif 4", Georgia, "Times New Roman", serif;
+  --sans:"Archivo", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono:"JetBrains Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#101416; --card:#171c1f; --ink:#e3e9e8; --muted:#96a2a4;
+    --rule:#2a3236; --hair:#212a2d;
+    --accent:#5fb8c4; --accent-wash:#12282c;
+    --flag:#dd8a75; --flag-wash:#2e1d19;
+    --ok:#6dbb92;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#101416; --card:#171c1f; --ink:#e3e9e8; --muted:#96a2a4;
+  --rule:#2a3236; --hair:#212a2d;
+  --accent:#5fb8c4; --accent-wash:#12282c;
+  --flag:#dd8a75; --flag-wash:#2e1d19;
+  --ok:#6dbb92;
+}
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--paper); color:var(--ink);
+  font-family:var(--serif); font-size:17px; line-height:1.62;
+  -webkit-font-smoothing:antialiased;
+}
+.page{max-width:1120px; margin:0 auto; padding-inline:22px; padding-block:0 80px}
+.col{max-width:67ch}
+h1,h2,h3,h4{font-family:var(--sans); text-wrap:balance; margin:0}
+p{margin:0 0 1.05em}
+a{color:var(--accent)}
+sup{font-size:.7em; line-height:0}
+
+/* ---------- title block ---------- */
+.masthead{border-bottom:2px solid var(--ink); padding-block:64px 26px; margin-bottom:34px}
+.venue{font-family:var(--mono); font-size:.72rem; letter-spacing:.14em; text-transform:uppercase;
+  color:var(--muted); margin-bottom:22px}
+h1{font-size:clamp(2.05rem,4.4vw,3.05rem); font-weight:700; line-height:1.08; letter-spacing:-.02em;
+  max-width:22ch}
+.subtitle{font-family:var(--serif); font-style:italic; font-size:clamp(1.05rem,2.2vw,1.3rem);
+  color:var(--muted); margin-top:.6em; max-width:52ch}
+.byline{margin-top:30px; font-family:var(--sans); font-size:.95rem; font-weight:500}
+.affil{font-family:var(--sans); font-size:.82rem; color:var(--muted); margin-top:.35em; font-weight:500}
+.draftflag{display:inline-block; margin-top:22px; font-family:var(--mono); font-size:.7rem;
+  letter-spacing:.1em; text-transform:uppercase; color:var(--flag);
+  border:1px solid var(--flag); padding:3px 10px}
+
+/* ---------- abstract ---------- */
+.abstract{border-top:1px solid var(--rule); border-bottom:1px solid var(--rule);
+  padding-block:24px; margin-bottom:48px; max-width:78ch}
+.abstract h2{font-size:.76rem; letter-spacing:.15em; text-transform:uppercase; color:var(--accent);
+  margin-bottom:.85em; font-weight:600}
+.abstract p{font-size:1.02rem; line-height:1.6}
+.abstract p:last-child{margin-bottom:0}
+
+/* ---------- sections ---------- */
+section{margin-bottom:46px}
+h2.sec{font-size:1.45rem; font-weight:700; letter-spacing:-.012em; margin-bottom:.75em;
+  padding-bottom:.3em; border-bottom:1px solid var(--rule)}
+h2.sec .n{font-family:var(--mono); font-size:.82rem; font-weight:500; color:var(--accent);
+  margin-right:.85em; letter-spacing:.02em}
+h3.sub{font-size:1.03rem; font-weight:600; margin:1.9em 0 .55em; color:var(--ink)}
+h3.sub .n{font-family:var(--mono); font-size:.8rem; font-weight:400; color:var(--accent);
+  margin-right:.7em}
+.lead::first-letter{font-size:2.9em; float:left; line-height:.82; padding:.06em .1em 0 0;
+  font-weight:600; color:var(--accent)}
+
+/* ---------- numbers & equations ---------- */
+.n-{font-family:var(--mono); font-variant-numeric:tabular-nums; font-size:.92em}
+.eq{font-family:var(--serif); text-align:center; font-size:1.06rem; margin:1.5em 0;
+  padding-block:.2em}
+.eq .tag{float:right; font-family:var(--mono); font-size:.78rem; color:var(--muted)}
+
+/* ---------- figures ---------- */
+figure{margin:34px 0; max-width:100%}
+figure img{display:block; width:100%; height:auto; background:#fff;
+  border:1px solid var(--hair)}
+figcaption{margin-top:10px; font-size:.86rem; line-height:1.52; color:var(--muted); max-width:88ch}
+figcaption b{color:var(--ink); font-weight:600; font-family:var(--sans); font-size:.84rem}
+
+/* ---------- tables ---------- */
+.tw{overflow-x:auto; margin:30px 0; border-top:1.5px solid var(--ink);
+  border-bottom:1.5px solid var(--ink)}
+table{border-collapse:collapse; width:100%; min-width:600px; font-size:.87rem;
+  font-family:var(--sans); font-weight:500}
+caption{caption-side:top; text-align:left; padding:0 0 12px; font-size:.86rem; color:var(--muted);
+  font-family:var(--serif)}
+caption b{font-family:var(--sans); font-weight:600; color:var(--ink); font-size:.82rem}
+th,td{padding:8px 16px; text-align:right; border-bottom:1px solid var(--hair)}
+th:first-child,td:first-child{text-align:left}
+thead th{font-family:var(--mono); font-size:.7rem; font-weight:500; letter-spacing:.06em;
+  text-transform:uppercase; color:var(--muted); border-bottom:1px solid var(--rule)}
+tbody td{font-family:var(--mono); font-variant-numeric:tabular-nums; font-weight:400}
+tbody td:first-child{font-family:var(--sans); font-weight:500}
+tbody tr:last-child td{border-bottom:none}
+tr.flagged td{background:var(--flag-wash)}
+.tag{display:inline-block; padding:0 7px; font-family:var(--mono); font-size:.7rem;
+  border:1px solid currentColor}
+.tag.ok{color:var(--ok)} .tag.no{color:var(--flag)} .tag.mid{color:var(--muted)}
+
+/* ---------- callouts ---------- */
+.finding{border-left:3px solid var(--accent); background:var(--card); padding:18px 22px;
+  margin:30px 0; max-width:80ch}
+.finding h4{font-size:.74rem; letter-spacing:.13em; text-transform:uppercase; color:var(--accent);
+  margin-bottom:.6em; font-weight:600}
+.finding p:last-child{margin-bottom:0}
+.finding.warn{border-left-color:var(--flag)}
+.finding.warn h4{color:var(--flag)}
+
+/* ---------- references ---------- */
+.refs{font-size:.87rem; line-height:1.5}
+.refs li{margin-bottom:.75em; padding-left:2.2em; text-indent:-2.2em; list-style:none}
+.refs ul{padding:0; margin:0}
+
+footer{border-top:1px solid var(--rule); margin-top:60px; padding-top:24px;
+  font-family:var(--mono); font-size:.76rem; color:var(--muted); line-height:1.85}
+
+@media (max-width:700px){
+  body{font-size:16px}
+  .lead::first-letter{font-size:2.3em}
+}
+</style>
+
+<div class="page">
+
+<header class="masthead">
+  <div class="venue">Manuscript draft · geophysics · 14 September 2026</div>
+  <h1>Which seismic observable remembers the strain?</h1>
+  <p class="subtitle">A forward test from three-dimensional discrete-element mechanics to
+  synthetic seismic, on a crustal extension model</p>
+  <div class="byline">Soojung An<sup>1</sup> · Byung-Dal So<sup>1</sup></div>
+  <div class="affil">1 · Department of Geophysics, Kangwon National University, Chuncheon 24341,
+  Republic of Korea</div>
+  <span class="draftflag">Draft — author list and venue to confirm</span>
+</header>
+
+<div class="abstract">
+  <h2>Abstract</h2>
+  <p>Discrete-element models of the crust are interpreted through their mechanics, but the crust
+  itself is observed through seismic data. Botter et&nbsp;al. (2014) closed that gap in two
+  dimensions by mapping finite strain from a discrete-element fault model onto elastic properties
+  and forward-modelling a seismic image. We extend the workflow to three dimensions on a
+  259,943-particle crustal extension model, and use it to ask a question the two-dimensional
+  version could not: <i>how much of the deformation each step of the chain actually preserves</i>.</p>
+  <p>Two independent particle-wise strain estimators — a global finite-element projection and a
+  nearest-neighbour least-squares fit — agree only moderately pointwise
+  (<span class="n-">r = +0.72</span>), yet give first-arrival traveltimes that differ by an RMS of
+  <span class="n-">0.067 s</span> over the whole volume, <span class="n-">0.4%</span> of the mean
+  arrival. The same two fields give synthetic seismic sections that appear to agree at
+  <span class="n-">r = +0.971</span> — but a zero-strain control shows that
+  <span class="n-">97–99%</span> of that is the reference velocity model both were handed, and the
+  strain-driven part of the image agrees only at <span class="n-">r = +0.405</span>. Agreement
+  between rock-physics routes is therefore observable-dependent and non-monotonic: traveltime
+  integrates and forgives, the seismic image differentiates and does not.</p>
+  <p>We further show that when a bonded-particle model publishes measured macroscopic elastic
+  constants, its seismic properties follow with no empirical velocity relation, and independent
+  rock-physics trends become validation rather than input. On this model that test is passed by
+  the three crustal layers and failed by the basal décollement, whose mechanical weakness has no
+  seismic counterpart. Two negative results follow: a Hertz–Mindlin effective medium
+  underestimates a bonded pack by <span class="n-">34–39%</span> because it discards the bonds,
+  and Vp/Vs — the quantity such workflows are usually built to produce — is not constrained by any
+  of the three routes.</p>
+</div>
+
+<section>
+  <h2 class="sec"><span class="n">1</span>Introduction</h2>
+  <div class="col">
+  <p class="lead">Discrete-element models have become a standard tool for studying how faults grow
+  in extending crust. They resolve individual fractures, they track finite strain without a
+  constitutive assumption about localisation, and they make testable predictions about fault
+  geometry — whether faults are listric or planar, how blocks rotate, where damage concentrates.
+  An &amp; So (2026) used a family of five such models, differing only in bonded strength, to show
+  that crustal strength controls the bifurcation between low-angle listric and high-angle planar
+  fault systems, and argued that this has consequences for trap integrity and therefore for the
+  global distribution of hydrocarbons.</p>
+
+  <p>Every one of those conclusions is drawn from mechanics. In the field, none of those
+  quantities is observed directly: what is observed is a seismic image and a set of traveltimes.
+  The step from one to the other is not neutral. It passes through a rock-physics mapping that is
+  usually empirical, through a wave-propagation approximation, and through an acquisition and
+  processing chain with its own resolution limits — and each of those steps can preserve, distort,
+  or destroy the mechanical signal.</p>
+
+  <p>Botter et&nbsp;al. (2014) built the first complete version of this chain for a fault model:
+  discrete-element mechanics, finite strain from particle displacements, empirical relations from
+  strain to porosity, density and velocity, and finally a ray-based pre-stack depth-migration
+  simulator. Their workflow has since been used to argue about what fault zones should look like
+  on seismic data. It is, however, a two-dimensional proof of concept, and — being a proof of
+  concept — it does not quantify how much of the mechanics survives each step.</p>
+
+  <p>This paper does three things. First, it carries the workflow into three dimensions at full
+  model scale, which requires a strain solver that does not assemble a redundant nine-fold system
+  and a mesh filter that actually removes degenerate elements. Second, it runs two independent
+  strain estimators and two independent rock-physics routes through the same chain, so that the
+  agreement at each observable can be measured rather than assumed. Third, it shows that a
+  discrete-element model which reports measured macroscopic elastic constants does not need an
+  empirical velocity relation at all — and that this turns standard rock-physics trends into an
+  independent audit of the model's own parameters.</p>
+
+  <p>The result we consider most useful is negative and methodological. A high correlation between
+  two synthetic seismic sections is not evidence that two strain estimators agree, because the
+  reference velocity model they share dominates the image. Any comparison of strain methods
+  conducted through a seismic image must remove that shared reference first. We give the control
+  experiment that does it.</p>
+  </div>
+</section>
+
+<section>
+  <h2 class="sec"><span class="n">2</span>Model and methods</h2>
+  <div class="col">
+
+  <h3 class="sub"><span class="n">2.1</span>The discrete-element model</h3>
+  <p>We use the three-dimensional bonded-particle models of An &amp; So (2026): 259,943 particles
+  of radius <span class="n-">330–430 m</span> in a domain
+  <span class="n-">149.5 × 29.6 × 14.6 km</span>, bonded by a parallel-bond contact law with
+  normal and shear stiffness, and extended along <i>x</i> by moving side and basal walls while the
+  <i>y</i> boundaries are held fixed. The column is divided into an upper
+  (<span class="n-">0 to −7 km</span>), middle (<span class="n-">−7 to −11 km</span>) and lower
+  (<span class="n-">−11 to −15 km</span>) crustal layer, with a basal décollement between
+  <span class="n-">−13 and −15 km</span> spanning <span class="n-">x = 30–120 km</span>. Five
+  models M1–M5 share this geometry and differ only in bond strength.</p>
+
+  <p>Analyses below use model M4 at the first archived extension stage, measured here as
+  <span class="n-">19.88 km</span> of extension on an initial width of
+  <span class="n-">149.52 km</span>, i.e. <span class="n-">β = 1.13</span>. M4 is the
+  strong-crust end of the transition, producing high-angle planar faults and well-developed
+  horst-and-graben structure.</p>
+
+  <p>Supplementary Table 1 of that paper gives, per layer, the bulk density, the macroscopic
+  Young's modulus and the friction angle, together with per-model bond strengths, uniaxial
+  compressive strength and macroscopic tensile and cohesive strength. Critically, the Young's
+  modulus is <i>measured</i>, not prescribed: their Supplementary Fig. 10 reports uniaxial
+  compression tests on a bonded cylindrical sample of 19,434 particles
+  (<span class="n-">5 km</span> diameter, <span class="n-">10 km</span> height). It is therefore
+  a macroscopic continuum modulus and can be used directly in an elastic velocity.</p>
+
+  <h3 class="sub"><span class="n">2.2</span>Particle-wise finite strain</h3>
+  <p>Two estimators of the deformation gradient <b>F</b> are compared. The first is the
+  implicit-global finite element method (IG-FEM) of An et&nbsp;al. (2023), extended to three
+  dimensions: a Delaunay tetrahedralisation of the undeformed particle positions, element-wise
+  displacement gradients, and a global mass-matrix L2 projection onto the particles. The second is
+  the nearest-neighbour local least-squares fit of Cardozo &amp; Allmendinger (2009), implemented
+  in SSPX and used by Botter et&nbsp;al. themselves, which fits <b>F</b> to
+  d<b>x</b> = <b>F</b> d<b>X</b> over each particle's sixteen nearest neighbours. Volumetric
+  strain is <span class="n-">det(F) − 1</span> in both cases. All velocity fields below are built
+  from the IG-FEM field unless stated otherwise.</p>
+
+  <p>Two implementation points matter for reproducing this at scale. The
+  <span class="n-">9 p</span>-sized global system is block diagonal: all nine mass blocks are the
+  same <span class="n-">p × p</span> matrix and the gradient operator has only three distinct
+  blocks. Assembling one copy of each and reusing a single factorisation for the nine right-hand
+  sides makes the solve <span class="n-">p</span>-sized, and brings the full-model run to
+  <span class="n-">967 s</span> and <span class="n-">8.5 GB</span> on four cores — from figures
+  that had previously required a 128 GB workstation.</p>
+
+  <p>Second, degenerate tetrahedra must be filtered on shape, not volume. A test on absolute
+  volume is scale-dependent and removes none of this mesh's 1,550,208 elements even though about
+  5% are slivers. Filtering on the scale-invariant quality
+  <span class="n-">q = 6√2 V / L³<sub>max</sub></span> at
+  <span class="n-">q ≥ 0.05</span> removes <span class="n-">5.24%</span> of elements and collapses
+  the recovered volumetric strain range from <span class="n-">−392…+211</span> to
+  <span class="n-">−17.8…+22.9</span>, while leaving the mean and median unchanged
+  (<span class="n-">−0.038, −0.068</span>). Agreement with the independent SSPX estimate rises
+  from <span class="n-">+0.110</span> to <span class="n-">+0.581</span> and then plateaus
+  (Table 1).</p>
+  </div>
+
+  <div class="tw">
+    <table>
+      <caption><b>Table 1.</b> Sliver-filter threshold sweep on the full model. Correlations are
+      against the independent SSPX strain estimate, over all particles and over the subset where
+      both estimators stay inside |det(F) − 1| &lt; 1.</caption>
+      <thead><tr><th>q<sub>min</sub></th><th>elements removed</th><th>vol range</th>
+        <th>corr, all</th><th>corr, |vol| &lt; 1</th></tr></thead>
+      <tbody>
+        <tr><td>0</td><td>0.00%</td><td>−391.8 … +210.8</td><td>+0.110</td><td>+0.622</td></tr>
+        <tr><td>0.01</td><td>2.41%</td><td>−35.9 … +52.4</td><td>+0.415</td><td>+0.682</td></tr>
+        <tr><td>0.05</td><td>5.24%</td><td>−17.8 … +22.9</td><td>+0.581</td><td>+0.719</td></tr>
+        <tr><td>0.10</td><td>5.69%</td><td>−19.2 … +24.3</td><td>+0.582</td><td>+0.723</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="col">
+  <h3 class="sub"><span class="n">2.3</span>Three routes from mechanics to elastic properties</h3>
+  <p><b>Route A, empirical (Botter et&nbsp;al., 2014).</b> Porosity from volumetric strain,
+  density from porosity, velocity from a piecewise-quadratic curve bounded to ±25% of a reference
+  velocity, and Vs from Han's (1986) water-saturated sandstone relation. This is the published
+  workflow, applied here with the reference state used in the model's own code.</p>
+
+  <p><b>Route B, the model's own elastic constants.</b> Because the Young's modulus is measured,
+  the reference velocities follow directly:</p>
+  <div class="eq">Vp = √[ E(1−ν) ⁄ ρ(1+ν)(1−2ν) ] &nbsp;&nbsp;&nbsp;&nbsp;
+    Vs = √[ E ⁄ 2ρ(1+ν) ]<span class="tag">(1)</span></div>
+  <p>with ν the only unmeasured constant, taken as 0.25. The strain still modulates Vp through
+  Botter's Eq. (3), but density is updated by mass conservation,
+  <span class="n-">ρ = ρ₀ ⁄ det(F)</span>, rather than through a porosity change: at crustal
+  porosity the porosity route is inert, whereas det(F) is by definition the volume ratio of the
+  same material. The volume ratio is bounded asymmetrically — 3% in compaction, 25% in dilatation
+  — because rock can only densify by closing the porosity it has, but can dilate much further by
+  fracturing.</p>
+
+  <p><b>Route C, contact mechanics.</b> A Hertz–Mindlin effective medium built from the pack
+  geometry alone: contacts detected from positions and radii, Hertzian normal forces from the
+  overlaps, coordination number and porosity from a measurement sphere of eight mean radii, local
+  pressure from a coarse-grained virial stress over the same sphere, and then the standard
+  dry-pack expressions for K and G. No strain and no fitted curve enter this route at any point.</p>
+
+  <h3 class="sub"><span class="n">2.4</span>Forward seismic modelling</h3>
+  <p>Each velocity field is interpolated onto a common regular grid over the deformed geometry
+  (<span class="n-">679 × 119 × 57</span> nodes, <span class="n-">dx = 250 m</span>,
+  <span class="n-">4.61 M</span> nodes, of which <span class="n-">90.7%</span> lie inside the
+  pack) by inverse-distance weighting over the eight nearest particles. First-arrival traveltimes
+  are obtained by solving the eikonal equation in the full three-dimensional volume with the fast
+  marching method, from a single point source at
+  <span class="n-">(75.0, −14.9, −3.50) km</span>.</p>
+
+  <p>Synthetic seismic sections follow Botter et&nbsp;al.'s third step in its lightweight form:
+  acoustic impedance, depth to two-way time, normal-incidence reflectivity, convolution with a
+  zero-phase Ricker wavelet, and a map back to depth — the perfect-illumination limit their own
+  paper identifies as the approximation a ray-based migration approaches.</p>
+
+  <div class="finding">
+    <h4>A resolution rule we recommend adopting</h4>
+    <p>The wavelet frequency must be tied to the model grid, not chosen for realism. A
+    <span class="n-">250 m</span> grid resolves a quarter-wavelength of
+    <span class="n-">250 m</span>, so the honest upper frequency is
+    <span class="n-">f = Vp ⁄ 4Δx</span>: <span class="n-">2.7 Hz</span> at
+    <span class="n-">2.7 km/s</span>, <span class="n-">5.0 Hz</span> at
+    <span class="n-">5.0 km/s</span>. Above it the section contains detail the model does not.
+    The diagnostic is decisive: at <span class="n-">30 Hz</span>, two velocity models differing by
+    <span class="n-">60%</span> in velocity and <span class="n-">78%</span> in impedance produce
+    sections correlating at <span class="n-">+0.993</span>. At <span class="n-">5 Hz</span> the
+    same pair correlates at <span class="n-">+0.609</span>. A section that cannot distinguish
+    those two models is imaging the interpolation, not the rock. All sections below are computed
+    at 5 Hz.</p>
+  </div>
+  </div>
+</section>
+
+<section>
+  <h2 class="sec"><span class="n">3</span>Results</h2>
+  <div class="col">
+
+  <h3 class="sub"><span class="n">3.1</span>The two strain estimators</h3>
+  <p>On the filtered mesh the two estimators recover the same bulk deformation — mean volumetric
+  strain <span class="n-">−0.041</span> (SSPX) against <span class="n-">−0.038</span> (IG-FEM),
+  median <span class="n-">−0.065</span> against <span class="n-">−0.068</span> — and agree
+  pointwise at <span class="n-">r = +0.719</span> over the 255,574 particles where both stay
+  inside <span class="n-">|det(F) − 1| &lt; 1</span>. The scatter about the 1:1 line is wide but
+  the ridge lies on it. For comparison, the same two estimators applied to a two-dimensional model
+  of the same family agree at only <span class="n-">r = +0.055</span>; the difference is mesh
+  quality rather than dimensionality.</p>
+  </div>
+
+  <figure>
+    <img src="fig3d_strain_vp.png" alt="Three panels: volumetric strain histograms for the two estimators, a two-dimensional density plot of their pointwise agreement, and depth profiles of mean Vp for the three rock-physics routes.">
+    <figcaption><b>Figure 1.</b> The two strain estimators. <i>Left,</i> both recover the same
+    distribution of volumetric strain, with a slightly heavier IG-FEM tail on both sides.
+    <i>Centre,</i> pointwise agreement, <span class="n-">r = +0.719</span>.
+    <i>Right,</i> depth trends of the resulting Vp: the two empirical routes are
+    indistinguishable because they share a reference state, while the contact-mechanics route,
+    which has none, is nearly flat with depth.</figcaption>
+  </figure>
+
+  <div class="col">
+  <h3 class="sub"><span class="n">3.2</span>Elastic properties from the model's own constants</h3>
+  <p>Equation (1) applied to Supplementary Table 1 gives the reference state in Table 2. Three
+  independent rock-physics relations, none of which has seen this model, then act as an audit.
+  Gardner's (1974) law recovers the tabulated densities from those velocities to within
+  <span class="n-">0.9%</span>, <span class="n-">3.5%</span> and <span class="n-">6.3%</span> for
+  the three crustal layers; Brocher's (2005) Vp–Vs regression recovers the elastic Vs to within
+  <span class="n-">4%</span>; and the modulus ratios <span class="n-">E/UCS</span> of
+  <span class="n-">355, 287, 191</span> lie inside Deere &amp; Miller's (1966) medium-to-high band
+  for real rock. After deformation the three layers average
+  <span class="n-">Vp = 3.89, 5.09, 5.97 km/s</span> and impedance
+  <span class="n-">8.73, 12.92, 16.48 ×10⁶ kg m⁻² s⁻¹</span>, inside published ranges for a 15 km
+  crustal column throughout.</p>
+
+  <p>The décollement fails all three tests. Its modulus ratio of <span class="n-">33</span> is an
+  order of magnitude below the rock band, Gardner misses its density by
+  <span class="n-">13%</span>, Brocher misses its Vs by <span class="n-">177%</span>, and
+  Equation (1) returns <span class="n-">Vp = 1.31 km/s</span> at 13–15 km depth, which is
+  shallow-marine-sediment velocity. A real detachment at that density — an evaporite — is
+  seismically <i>fast</i>, <span class="n-">4.0–4.5 km/s</span>. Here it is the slowest material in
+  the model, which gives a normal-incidence reflection coefficient of
+  <span class="n-">−0.691</span> against the lower crust, close to a rock–gas contrast and unlike
+  any crustal interface. The décollement is a mechanical device that does its job in the
+  discrete-element model and does not survive translation into a seismic model; we exclude it from
+  the quantitative comparisons and return to it in Section 4.3.</p>
+  </div>
+
+  <div class="tw">
+    <table>
+      <caption><b>Table 2.</b> Supplementary Table 1 of An &amp; So (2026), model M4, read as
+      seismic properties through Equation (1) with ν = 0.25. Verdicts are against published
+      ranges for a 15 km crustal column (Christensen &amp; Mooney, 1995; Brocher, 2005).</caption>
+      <thead><tr><th>layer</th><th>depth km</th><th>ρ kg m⁻³</th><th>E GPa</th><th>UCS MPa</th>
+        <th>E/UCS</th><th>Vp m s⁻¹</th><th>Vs m s⁻¹</th><th>Z ×10⁶</th><th>verdict</th></tr></thead>
+      <tbody>
+        <tr><td>upper</td><td>0 … −7</td><td>2300</td><td>30</td><td>156.9</td><td>191</td>
+          <td>3956</td><td>2284</td><td>9.10</td>
+          <td style="text-align:left"><span class="tag ok">consistent</span></td></tr>
+        <tr><td>middle</td><td>−7 … −11</td><td>2500</td><td>50</td><td>174.3</td><td>287</td>
+          <td>4899</td><td>2828</td><td>12.25</td>
+          <td style="text-align:left"><span class="tag ok">consistent</span></td></tr>
+        <tr><td>lower</td><td>−11 … −15</td><td>2700</td><td>70</td><td>197.1</td><td>355</td>
+          <td>5578</td><td>3220</td><td>15.06</td>
+          <td style="text-align:left"><span class="tag mid">4% slow</span></td></tr>
+        <tr class="flagged"><td>décollement</td><td>−13 … −15</td><td>2100</td><td>3</td>
+          <td>90.9</td><td>33</td><td>1309</td><td>756</td><td>2.75</td>
+          <td style="text-align:left"><span class="tag no">not a rock</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <figure>
+    <img src="fig3d_paper_audit.png" alt="Three panels auditing the tabulated constants: Young's modulus against uniaxial compressive strength with the Deere and Miller envelope, Vp against density with Gardner's curve, and the reflection coefficients of the layer stack.">
+    <figcaption><b>Figure 2.</b> The model's own constants audited against rock. <i>Left,</i>
+    stiffness against strength: the three crustal layers fall inside the real-rock modulus-ratio
+    envelope, the décollement an order of magnitude below it. <i>Centre,</i> the velocity each
+    density implies: the crustal layers straddle Gardner's curve; the décollement lies far below
+    it where a real evaporite would lie far above. <i>Right,</i> what the undeformed stack would
+    reflect at normal incidence.</figcaption>
+  </figure>
+
+  <div class="col">
+  <h3 class="sub"><span class="n">3.3</span>The observable ladder</h3>
+  <p>Carrying both strain fields through the identical reference state isolates the strain as the
+  only difference between them, and the agreement can then be tracked observable by observable
+  (Table 3).</p>
+
+  <p>Pointwise, the two strain fields agree at <span class="n-">r = +0.719</span>. The velocity
+  fields they produce agree at <span class="n-">+0.992</span>, because the shared reference state
+  dominates and the strain modulates it by at most ±25%. The first-arrival traveltimes agree to an
+  RMS of <span class="n-">0.067 s</span> over the whole volume and
+  <span class="n-">0.114 s</span> at the surface — <span class="n-">0.7%</span> of a mean arrival
+  of <span class="n-">16.5 s</span> — with a worst case of <span class="n-">0.478 s</span> at the
+  rift shoulder near <span class="n-">x = 94 km</span>. Across 170 km of offset the two surface
+  traveltime curves overplot to line thickness.</p>
+
+  <p>This is the robust half of the result, and it repeats the two-dimensional finding: a
+  first-arrival traveltime does not care which of the two strain estimators was used. Integration
+  along the ray averages away pointwise disagreement that a scatter plot makes look fatal.</p>
+  </div>
+
+  <div class="col">
+  <p>The difference between the two estimators is structured rather than random: it concentrates
+  in the rift interior and changes sign across the fault near <span class="n-">x = 60 km</span>,
+  which is where the two recover different dilatation (Supplementary Fig. S2). It is the
+  magnitude, not the pattern, that is negligible.</p>
+  </div>
+
+  <figure>
+    <img src="fig3d_paper_tx.png" alt="Surface traveltime-offset curves for the three rock-physics routes, with straight-ray reference lines at four and six kilometres per second.">
+    <figcaption><b>Figure 3.</b> Surface traveltime–offset curves for the three routes on the
+    same strain field, all using the tabulated layer moduli where they need them. Route B lies
+    between the 4 and 6 km/s reference rays, which is where a rifted crustal column with a slower
+    upper layer belongs. Routes A and C are both far outside it — Route A because its reference
+    velocities are a shallow-basin set, Route C because a contact-only effective medium
+    underestimates a bonded pack (Section 3.5).</figcaption>
+  </figure>
+
+  <div class="col">
+  <h3 class="sub"><span class="n">3.4</span>The shared reference model</h3>
+  <p>The synthetic sections appear to reverse the two-dimensional result. In two dimensions the
+  sections from the two strain estimators were uncorrelated,
+  <span class="n-">r = +0.011</span>. In three dimensions they correlate at
+  <span class="n-">+0.971</span>.</p>
+
+  <p>Almost none of that is agreement about the strain. The three-dimensional reference state puts
+  layer boundaries into the model before any strain is applied, and both routes receive exactly
+  the same ones; the two-dimensional setup used a smooth linear depth trend with no contrasts for
+  a wavelet to reflect from. Building the section of the <i>zero-strain</i> reference model
+  settles it quantitatively: each route's section correlates with that control at
+  <span class="n-">+0.988</span> and <span class="n-">+0.967</span>. Regressing the control out
+  leaves the two strain-driven residuals correlating at <span class="n-">+0.405</span>, and the
+  strain accounts for only <span class="n-">16%</span> and <span class="n-">25%</span> of the
+  total section amplitude.</p>
+
+  <div class="finding warn">
+    <h4>The methodological trap</h4>
+    <p>A high correlation between two synthetic seismic sections is not evidence that the two
+    underlying strain fields agree. On this model the raw figure is <span class="n-">+0.971</span>
+    and the honest figure is <span class="n-">+0.405</span> — the difference being the velocity
+    model the modeller supplied by hand. Any comparison of strain methods, rock-physics relations,
+    or mechanical models conducted through a synthetic seismic image must build the zero-strain
+    control and regress it out. Otherwise the metric mostly reports how much structure was put in
+    before the experiment began.</p>
+  </div>
+  </div>
+
+  <div class="tw">
+    <table>
+      <caption><b>Table 3.</b> Agreement between the two strain estimators, and between the
+      contact-mechanics route (C) and the elastic-constant route (B), at each step of the chain.
+      Route C figures use the tabulated layer moduli and the 5 Hz section. Two-dimensional
+      figures are from the same estimators applied to a 17,694-particle model.</caption>
+      <thead><tr><th>observable</th><th>2D</th><th>3D</th><th>reading</th></tr></thead>
+      <tbody>
+        <tr><td>Volumetric strain, pointwise</td><td>+0.055</td><td>+0.719</td>
+          <td style="text-align:left">mesh quality, not dimensionality</td></tr>
+        <tr><td>Vp field, pointwise</td><td>—</td><td>+0.992</td>
+          <td style="text-align:left">shared reference dominates</td></tr>
+        <tr><td>Traveltime, whole volume (RMS)</td><td>0.14 s</td><td>0.067 s</td>
+          <td style="text-align:left">robust</td></tr>
+        <tr class="flagged"><td>Seismic section, raw</td><td>+0.011</td><td>+0.971</td>
+          <td style="text-align:left">misleading</td></tr>
+        <tr><td>Seismic section, control removed</td><td>+0.011</td><td>+0.405</td>
+          <td style="text-align:left">the comparable figure</td></tr>
+        <tr><td>Route C vs Route B, traveltime (pattern)</td><td>—</td><td>+0.999</td>
+          <td style="text-align:left">geometry-led</td></tr>
+        <tr><td>Route C vs Route B, section</td><td>+0.061</td><td>+0.068</td>
+          <td style="text-align:left">independent information</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <figure>
+    <img src="fig3d_paper_sections.png" alt="Two synthetic seismic sections at 5 Hz, one from the published empirical calibration and one from the model's own elastic constants.">
+    <figcaption><b>Figure 4.</b> Synthetic sections at the frequency the grid supports. The
+    bright, laterally continuous basal reflector in the lower panel is the décollement at
+    <span class="n-">R = −0.69</span>: the most prominent feature in the image and the least
+    defensible one.</figcaption>
+  </figure>
+
+  <div class="col">
+  <h3 class="sub"><span class="n">3.5</span>Contact mechanics and bonded packs</h3>
+  <p>The Hertz–Mindlin route is the only one of the three that uses no strain and no fitted curve,
+  which makes it attractive as an independent check. Applied to this pack it detects
+  <span class="n-">1,268,096</span> contacts, a mean coordination number of
+  <span class="n-">10.25</span> and a mean measurement-sphere porosity of
+  <span class="n-">0.080</span>. Run with the tabulated layer moduli, it returns velocities
+  <span class="n-">34–39%</span> below Equation (1) in every layer.</p>
+
+  <p>That is not a numerical failure. Hertz–Mindlin builds stiffness from grain contacts loaded by
+  the confining pressure and contains no term for cementation. The model it is being applied to is
+  <i>bonded</i>: M4's parallel bonds carry cohesive strengths of 48–60 MPa, and those bonds supply
+  most of the macroscopic modulus that the uniaxial tests measured. A contact-only effective
+  medium must therefore come out low for a cemented pack. A contact-cement model (Dvorkin &amp;
+  Nur, 1996) would be the appropriate first-principles route; where the macroscopic modulus has
+  been measured, as here, using it directly is better still.</p>
+
+  <p>Two further limitations of this route are worth recording, because both are structural rather
+  than incidental. First, the dry-pack expressions give
+  <span class="n-">K/G = 5(2−ν) ⁄ 3(5−4ν)</span> independently of coordination number, porosity
+  and pressure, so Vp/Vs is pinned at a single value — here
+  <span class="n-">1.4281</span> with a standard deviation of
+  <span class="n-">1.4 × 10⁻¹⁶</span> across 118,019 particles. Second, this discrete-element
+  model uses soft contacts, with median centre-to-centre spacing
+  <span class="n-">640 m</span> against a median radius sum of <span class="n-">735 m</span>, so
+  reconstructing Hertzian forces from the geometric overlaps gives a coarse-grained pressure of
+  <span class="n-">1.3 GPa</span>, above lithostatic at 15 km. The velocity level from this route
+  encodes the model's contact convention; only its spatial pattern is informative.</p>
+
+  <p>That pattern is nonetheless the most distinctive of the three, and this is what makes the
+  route worth keeping despite the offset in level. Because coordination number and
+  contact-network porosity respond directly to fault damage, the contact-mechanics velocity field
+  shows sharp low-velocity bands along the fault zones that the empirical routes barely register,
+  and it is the only route with appreciable along-strike variation: its velocity scatter at fixed
+  <span class="n-">(x, z)</span> is <span class="n-">35%</span> of its in-section scatter, against
+  <span class="n-">8–9%</span> for the routes that inherit a layered reference state. Its
+  traveltime <i>pattern</i> matches Route B at <span class="n-">r = +0.999</span> while its
+  <span class="n-">5 Hz</span> section matches it at only <span class="n-">+0.068</span> — the
+  same split between integrating and differentiating observables found in Section 3.3, now
+  between two genuinely independent physical models rather than two estimators of one strain
+  field.</p>
+  </div>
+
+  <figure>
+    <img src="fig3d_vp.png" alt="Three stacked cross-sections of Vp for the three rock-physics routes on the same slice.">
+    <figcaption><b>Figure 5.</b> Vp from the three routes on the same slice. The two empirical
+    panels are near-indistinguishable — what is visible is the imposed layering, modulated by the
+    strain. The contact-mechanics panel has no layering to inherit and is structurally different:
+    a near-uniform background cut by sharp low-velocity bands that follow the fault damage
+    zones.</figcaption>
+  </figure>
+</section>
+
+<section>
+  <h2 class="sec"><span class="n">4</span>Discussion</h2>
+  <div class="col">
+
+  <h3 class="sub"><span class="n">4.1</span>What survives the trip</h3>
+  <p>The central result is that agreement between rock-physics routes is observable-dependent, and
+  that the dependence is not monotonic. Traveltime is forgiving because it integrates: two strain
+  fields that disagree pointwise at <span class="n-">r = +0.72</span> deliver arrivals within
+  <span class="n-">0.7%</span> of each other across 170 km of offset. The seismic image is
+  unforgiving because it differentiates impedance, and therefore amplifies exactly the small-scale
+  disagreement that traveltime smoothed away.</p>
+
+  <p>For interpretation of real rift seismic this has a direct consequence. Where a mechanical
+  model is being tested against traveltime or tomography, the choice of strain estimator and the
+  details of the rock-physics mapping are second-order, and the comparison is meaningful. Where it
+  is being tested against reflection character — the thing most often done, because the fault
+  geometry is what the image shows — those choices are first-order, and a claim that a model
+  reproduces an observed section needs the control experiment of Section 3.4 before it carries
+  weight.</p>
+
+  <h3 class="sub"><span class="n">4.2</span>Vp/Vs is not constrained</h3>
+  <p>Workflows of this kind are usually built to produce a Vp/Vs field, because Vp/Vs is what
+  discriminates lithology and fluid in practice. None of the three routes produces a defensible
+  one for this model, and the reasons are instructive because they are different in each case.</p>
+
+  <p>Route A inherits Han's (1986) water-saturated sandstone relation, which is calibrated over
+  roughly <span class="n-">3.0–5.5 km/s</span> and returns <span class="n-">Vs = 0</span> at
+  <span class="n-">Vp = 0.991 km/s</span>. Applied to this model it is an extrapolation for
+  <span class="n-">58%</span> of particles and yields Poisson's ratios above
+  <span class="n-">0.40</span> for <span class="n-">42%</span> of them, reaching Vp/Vs of
+  <span class="n-">10.6</span> in the weak layer. Route C pins Vp/Vs to a single number by
+  construction. Route B is honest but uninformative: with ν unmeasured, Vp/Vs is
+  <span class="n-">√3</span> everywhere and carries no spatial information at all.</p>
+
+  <p>The remedy is available and cheap. The same uniaxial compression tests that produced the
+  Young's modulus in Supplementary Table 1 also produce a Poisson's ratio, from the lateral strain
+  of the sample. Reporting it per layer — and, better, per model M1–M5 — would turn Route B from
+  a Vp generator into a Vp/Vs generator and close the last gap in the chain. We suggest that
+  discrete-element studies intending their models to be compared with seismic data report ν
+  alongside E as a matter of course.</p>
+
+  <h3 class="sub"><span class="n">4.3</span>The décollement, and the limits of a mechanical proxy</h3>
+  <p>The basal décollement is included in these models to localise extension, and it does that
+  well: the fault architectures of An &amp; So (2026) are robust to halving and doubling its
+  thickness. Its parameters are chosen mechanically — <span class="n-">E = 3 GPa</span>, friction
+  angle <span class="n-">10°</span> — and there is no reason they should also be seismically
+  meaningful. They are not. Section 3.2 shows the layer failing every rock-physics consistency
+  test, and Figure 4 shows the consequence: the single brightest, most laterally continuous
+  reflector in the synthetic image is an artefact of a numerical device.</p>
+
+  <p>This generalises. Any element of a mechanical model that exists to control the mechanics
+  rather than to represent a rock — weak seeds, imposed detachments, boundary buffers — will
+  appear in a forward seismic image with an amplitude set by an elastic contrast nobody chose.
+  Forward seismic modelling of mechanical models should state explicitly which layers are
+  physically motivated and which are numerical, and should report images with the numerical ones
+  suppressed as well as included.</p>
+
+  <h3 class="sub"><span class="n">4.4</span>The experiment this sets up</h3>
+  <p>The parent study's central claim is that crustal strength selects between listric and planar
+  fault architecture, with consequences for trap integrity. The workflow established here makes
+  the natural follow-up question well posed: <i>is that strength signal recoverable from seismic
+  observables at all?</i> The five models M1–M5 share geometry, boundary conditions and extension
+  history, and differ only in bond strength — and now, through Equation (1), in a velocity
+  structure that follows from their own measured moduli. Running the full chain across the family
+  turns a mechanical claim into a testable seismic prediction: whether the traveltime field, the
+  reflection character, or neither, distinguishes a weak crust from a strong one at realistic
+  acquisition parameters.</p>
+  </div>
+</section>
+
+<section>
+  <h2 class="sec"><span class="n">5</span>Conclusions</h2>
+  <div class="col">
+  <p>We extended the discrete-element-to-seismic workflow of Botter et&nbsp;al. (2014) to three
+  dimensions at full model scale and used it to measure, rather than assume, how much of the
+  mechanics each observable preserves.</p>
+  <p>Two independent strain estimators agreeing at <span class="n-">r = +0.72</span> pointwise
+  produce first-arrival traveltimes agreeing to <span class="n-">0.4%</span>, and synthetic
+  seismic sections whose strain-driven parts agree at only <span class="n-">+0.405</span>.
+  Traveltime integrates and forgives; the image differentiates and does not.</p>
+  <p>A raw correlation between two synthetic sections is dominated by the reference velocity model
+  they share — here <span class="n-">97–99%</span> of it — and must be controlled for with a
+  zero-strain section before any comparison of strain methods or mechanical models is drawn from
+  it.</p>
+  <p>A discrete-element model that reports measured macroscopic elastic constants needs no
+  empirical velocity relation, and standard rock-physics trends then become an independent audit
+  of its parameters. Applied to this model the audit is passed by the three crustal layers and
+  failed by the numerical décollement, which nonetheless produces the brightest reflector in the
+  synthetic image.</p>
+  <p>A Hertz–Mindlin effective medium underestimates a bonded pack by
+  <span class="n-">34–39%</span> because it contains no cementation term, and pins Vp/Vs to a
+  single value. Vp/Vs is not constrained by any of the three routes; reporting Poisson's ratio
+  alongside Young's modulus would close that gap at no additional computational cost.</p>
+  </div>
+</section>
+
+<section>
+  <h2 class="sec"><span class="n">6</span>Data and code availability</h2>
+  <div class="col">
+  <p>The three-dimensional IG-FEM solver, the three rock-physics routes, the eikonal and
+  convolution forward modelling, and every script that produced the numbers and figures in this
+  paper are in the repository <span class="n-">Soo-jung-AN/3D_IG-FEM</span>, with the
+  two-dimensional contact-mechanics implementation in <span class="n-">Soo-jung-AN/HM_DEM</span>.
+  The discrete-element models and their parameters are those of An &amp; So (2026)
+  (<span class="n-">doi:10.5281/zenodo.17290101</span>).</p>
+  </div>
+</section>
+
+<section>
+  <h2 class="sec"><span class="n">7</span>References</h2>
+  <div class="refs col">
+  <ul>
+    <li>An, S., So, B.-D. &amp; Kim, H. N. New particle-wise finite element strain analysis for
+    discrete displacement of fold-and-thrust belt and horst-and-graben models.
+    <i>Earth and Space Science</i> <b>10</b>, 1–23 (2023).</li>
+    <li>An, S. &amp; So, B.-D. Discrete element modeling reveals crustal strength control on fault
+    architecture with global hydrocarbon distribution implications.
+    <i>Communications Earth &amp; Environment</i> (2026). doi:10.1038/s43247-026-03411-4</li>
+    <li>Botter, C., Cardozo, N., Hardy, S., Lecomte, I. &amp; Escalona, A. From mechanical
+    modeling to seismic imaging of faults: a synthetic workflow to study the impact of faults on
+    seismic. <i>Marine and Petroleum Geology</i> <b>57</b>, 187–207 (2014).</li>
+    <li>Brocher, T. M. Empirical relations between elastic wavespeeds and density in the Earth's
+    crust. <i>Bulletin of the Seismological Society of America</i> <b>95</b>, 2081–2092 (2005).</li>
+    <li>Cardozo, N. &amp; Allmendinger, R. W. SSPX: a program to compute strain from
+    displacement/velocity data. <i>Computers &amp; Geosciences</i> <b>35</b>, 1343–1357 (2009).</li>
+    <li>Christensen, N. I. &amp; Mooney, W. D. Seismic velocity structure and composition of the
+    continental crust: a global view. <i>Journal of Geophysical Research</i> <b>100</b>,
+    9761–9788 (1995).</li>
+    <li>Deere, D. U. &amp; Miller, R. P. <i>Engineering classification and index properties for
+    intact rock.</i> Technical Report AFWL-TR-65-116, Air Force Weapons Laboratory (1966).</li>
+    <li>Dvorkin, J. &amp; Nur, A. Elasticity of high-porosity sandstones: theory for two North Sea
+    data sets. <i>Geophysics</i> <b>61</b>, 1363–1370 (1996).</li>
+    <li>Gardner, G. H. F., Gardner, L. W. &amp; Gregory, A. R. Formation velocity and density: the
+    diagnostic basics for stratigraphic traps. <i>Geophysics</i> <b>39</b>, 770–780 (1974).</li>
+    <li>Han, D.-H. <i>Effects of porosity and clay content on acoustic properties of sandstones
+    and unconsolidated sediments.</i> PhD thesis, Stanford University (1986).</li>
+    <li>Mavko, G., Mukerji, T. &amp; Dvorkin, J. <i>The Rock Physics Handbook.</i> 2nd edn,
+    Cambridge University Press (2009).</li>
+    <li>Mindlin, R. D. Compliance of elastic bodies in contact. <i>Journal of Applied Mechanics</i>
+    <b>16</b>, 259–268 (1949).</li>
+    <li>Potyondy, D. O. &amp; Cundall, P. A. A bonded-particle model for rock.
+    <i>International Journal of Rock Mechanics and Mining Sciences</i> <b>41</b>,
+    1329–1364 (2004).</li>
+    <li>Sethian, J. A. A fast marching level set method for monotonically advancing fronts.
+    <i>Proceedings of the National Academy of Sciences</i> <b>93</b>, 1591–1595 (1996).</li>
+  </ul>
+  </div>
+</section>
+
+<footer>
+  Draft prepared 14 September 2026 · figures generated from Soo-jung-AN/3D_IG-FEM, branch
+  claude/dem-strain-vpvs-synthesis-jqdszc<br>
+  Supplementary figures available: S1, 3D eikonal traveltime cross-sections for the three routes;
+  S2, the traveltime difference between the two strain estimators; S3, depth profiles of the three
+  calibrations against published crustal ranges; S4, map-view velocity slices; S5, the
+  frequency-dependence control of Section 2.4.
+</footer>
+</div>

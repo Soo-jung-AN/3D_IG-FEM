@@ -16,26 +16,43 @@ import numpy as np
     #         del_id.append(i)
     # return np.delete(ele_id,del_id,0)
 
-def reshape_3D(undeformed_cood, ele_id):
-    del_id = []
-    for i in range(len(ele_id)):
-        e1, e2, e3, e4 = ele_id[i]
-        x1, y1, z1 = undeformed_cood[e1]
-        x2, y2, z2 = undeformed_cood[e2]
-        x3, y3, z3 = undeformed_cood[e3]
-        x4, y4, z4 = undeformed_cood[e4]
-        
-        # Tetrahedral Volume 계산
-        v_matrix = np.array([
-            [x2-x1, x3-x1, x4-x1],
-            [y2-y1, y3-y1, y4-y1],
-            [z2-z1, z3-z1, z4-z1]
-        ])
-        volume = np.abs(np.linalg.det(v_matrix)) / 6.0
-        
-        if volume < 1e-6:
-            del_id.append(i)
-    return np.delete(ele_id, del_id, 0)
+def tet_quality(undeformed_cood, ele_id):
+    """Normalised tetrahedron shape quality q = 6*sqrt(2)*V / L_max^3.
+    q = 1 for a regular tetrahedron and tends to 0 for a sliver, and it is
+    scale invariant -- unlike a raw volume, it means the same thing whether
+    the model is in metres or kilometres."""
+    a, b, c, d = (undeformed_cood[ele_id[:, k]] for k in range(4))
+    volume = np.abs(np.einsum('ij,ij->i', b - a, np.cross(c - a, d - a))) / 6.0
+    edges = np.stack([np.linalg.norm(x - y, axis=1) for x, y in
+                      ((a, b), (a, c), (a, d), (b, c), (b, d), (c, d))], axis=1)
+    return 6 * np.sqrt(2) * volume / edges.max(axis=1) ** 3
+
+
+def reshape_3D(undeformed_cood, ele_id, q_min=0.05):
+    """Drop degenerate (sliver) tetrahedra, which are where the recovered
+    deformation gradient blows up.
+
+    The filter is on shape quality, not raw volume. The previous absolute
+    test (volume < 1e-6) is scale dependent and silently does nothing on a
+    model whose element volumes run 1e4-1e8: it removed 0 of the 1,550,208
+    elements of the reference mesh, even though 5% of them are slivers.
+
+    q_min = 0.05 comes from a sweep on the reference model, scoring each
+    threshold by the spread of `vol` and by agreement with an independent
+    nearest-neighbour (SSPX-style) strain estimate on the same particles:
+
+        q_min   removed   vol range        corr vs SSPX (all / |vol|<1)
+        0        0.00%    -391.8 .. +210.8    +0.110 / +0.622
+        0.01     2.41%     -35.9 ..  +52.4    +0.415 / +0.682
+        0.05     5.24%     -17.8 ..  +22.9    +0.581 / +0.719
+        0.10     5.69%     -19.2 ..  +24.3    +0.582 / +0.723
+
+    Mean and median `vol` are unchanged across all of these (-0.038,
+    -0.068), i.e. the filter only removes sliver-driven outliers. Past
+    0.05 it plateaus. No particle loses all of its supporting elements at
+    any threshold up to 0.1, so the mass matrix stays non-singular.
+    """
+    return ele_id[tet_quality(undeformed_cood, ele_id) >= q_min]
 
 def remove_unused_nodes(undeformed_cood, ele_id):
     used_nodes = np.unique(ele_id).astype(np.int64)  
