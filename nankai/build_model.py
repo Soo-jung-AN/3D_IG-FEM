@@ -130,6 +130,29 @@ SOLVE_CYCLES = int(os.environ.get("NANKAI_SOLVE_CYCLES", "100000"))
 GRAVITY_STEPS = int(os.environ.get("NANKAI_GRAVITY_STEPS", "10"))
 GRAVITY_STEP_CYCLES = int(os.environ.get("NANKAI_GRAVITY_STEP_CYCLES", "500"))
 
+# WHICH WEDGE. A real accretionary prism does not stand on the tensile
+# strength of its own cement -- it stands in compression, on friction. The
+# bonded variant was tried first and the numbers refused it: the strongest
+# unit bonds at 4.8% of rho*g*H, and a strength x gap grid needed a x100
+# multiplier (pb_ten 100 MPa, harder than granite) before the skeleton
+# stopped shattering. "frictional" is therefore the default:
+#
+#   frictional  no parallel bonds anywhere. The pack carries its weight
+#               the way sand does, through contact friction. A seeded
+#               fault is a band of LOW FRICTION rather than weak cement,
+#               which is what a fault zone is. An unbonded linearpbond
+#               contact is identical to the linear model, so the contact
+#               model itself does not change.
+#   bonded      the earlier behaviour, kept so the two can be compared.
+WEDGE = os.environ.get("NANKAI_WEDGE", "frictional")
+# friction inside a seeded fault, as a fraction of the host unit's. The
+# strength equivalent of WEAK_FACTOR, for a wedge held by friction.
+WEAK_FRICTION = float(os.environ.get("NANKAI_WEAK_FRICTION", "0.5"))
+
+# Where to drop a per-stage snapshot of the pack, for
+# nankai/stage_figure.py. Empty means do not write any.
+SNAPSHOT_DIR = os.environ.get("NANKAI_SNAPSHOTS", "")
+
 R_MIN = R_MEAN / R_RATIO ** 0.5
 BOND_GAP_FRAC = float(os.environ.get("NANKAI_BOND_GAP_FRAC", "0.2"))
 BOND_GAP = BOND_GAP_FRAC * R_MIN
@@ -152,10 +175,36 @@ if not os.path.isabs(STEM):
     STEM = os.path.join(ROOT, STEM)
 
 m = Model(r_mean=R_MEAN, r_ratio=R_RATIO, slab=SLAB)
+B_BETA = m.beta
 
 
 def cmd(s):
     it.command(s)
+
+
+_SNAP_N = [0]
+
+
+def snapshot(tag, unit_codes=None):
+    """Write the pack as it stands, so the run can be looked at rather
+    than only summarised. ids are stored with it: particles are deleted
+    as the run goes on, so a stage is only comparable to another one
+    through the ids they share."""
+    if not SNAPSHOT_DIR:
+        return
+    if not os.path.isdir(SNAPSHOT_DIR):
+        os.makedirs(SNAPSHOT_DIR)
+    from itasca import ballarray as ba
+    _SNAP_N[0] += 1
+    out = os.path.join(SNAPSHOT_DIR, "%02d_%s.npz" % (_SNAP_N[0], tag))
+    kw = dict(pos=np.asarray(ba.pos(), dtype=float),
+              rad=np.asarray(ba.radius(), dtype=float),
+              ids=np.asarray(ba.ids()).astype(np.int64),
+              beta=B_BETA, tag=tag)
+    if unit_codes is not None:
+        kw["unit"] = np.asarray(unit_codes)
+    np.savez(out, **kw)
+    print(f"[snap] {tag:<24} -> {os.path.basename(out)}", flush=True)
 
 
 def census(stage):
@@ -196,9 +245,13 @@ def build():
     # switched on in apply_gravity(), after the pack is bonded.
     cmd("model gravity 0 0 0")
     cmd("model random 10101")
+    # proximity exists so a contact at a positive gap survives to be
+    # bonded. A frictional wedge bonds nothing, so it only needs the
+    # contacts that actually touch.
+    prox = BOND_GAP if WEDGE == "bonded" else 0.0
     cmd(f"contact cmat default model linearpbond "
         f"method deformability emod 1e9 kratio 1.5 "
-        f"proximity {BOND_GAP:.4f}")
+        f"proximity {prox:.4f}")
 
     # fill the bounding box, then delete everything outside the envelope
     cmd(f"ball distribute porosity 0.38 radius {R_MEAN/R_RATIO**0.5:.3f} "
@@ -288,6 +341,8 @@ def group_balls():
         print("[groups] WARNING: a boundary thinner than two particle "
               "diameters is a sieve, not a wall -- the pack pours through it.",
               flush=True)
+    snapshot("built", u)
+    return u
 
 
 def hold_boundaries():
@@ -318,6 +373,7 @@ def relax():
         # the interval: a bare `model cycle 1 calm` is a syntax error.
         cmd(f"model cycle {RELAX_CYCLES} calm {RELAX_CALM}")
         n1 = census("after relaxation")
+        snapshot("relaxed")
         if n1 < n0:
             print(f"[relax] WARNING: lost {n0 - n1:,} balls "
                   f"({100 * (n0 - n1) / n0:.1f}%) out of the domain", flush=True)
@@ -351,6 +407,12 @@ def strength_check():
     rho = max(p["density"] for p in PROPERTIES.values())
     sigma = rho * 9.81 * thickness
 
+    if WEDGE != "bonded":
+        print(f"[strength] frictional wedge: rho*g*H = {sigma / 1e6:.0f} MPa "
+              f"at the base is carried by friction, not by cement, so the "
+              f"bond strengths below are inert except inside seeded faults.",
+              flush=True)
+        return sigma
     strongest = max(PROPERTIES.items(), key=lambda kv: kv[1]["tensile"])
     print(f"[strength] wedge up to {thickness:,.0f} m thick: rho*g*H = "
           f"{sigma / 1e6:.0f} MPa at its base", flush=True)
@@ -419,7 +481,14 @@ def assign_contacts():
         # intact rock, then the same rock inside a seeded fault. Applied
         # as two explicit values rather than a multiplier, because not
         # every PFC build accepts `multiply` on contact property.
-        for tag, f in (("intact", 1.0), ("weak", WEAK_FACTOR)):
+        for tag in ("intact", "weak"):
+            # In a bonded wedge a seeded fault is weaker CEMENT; in a
+            # frictional one it is a band of lower FRICTION. Only one of
+            # the two is the thing holding the wedge up, so only one of
+            # them should be weakened.
+            f = 1.0 if (tag == "intact" or WEDGE != "bonded") else WEAK_FACTOR
+            mu = fric * (WEAK_FRICTION if (tag == "weak" and
+                                           WEDGE == "frictional") else 1.0)
             rng = f"range group '{name}' slot 'unit' group '{tag}' slot 'fault'"
             # emod, kratio, pb_emod and pb_kratio are all READ-ONLY
             # properties of linearpbond -- PFC answers `Property
@@ -433,7 +502,7 @@ def assign_contacts():
                 f"emod {p['E']:.6g} kratio 1.5 {rng}")
             cmd(f"contact property "
                 f"pb_ten {p['tensile'] * f:.6g} pb_coh {p['cohesion'] * f:.6g} "
-                f"fric {fric:.3f} {rng}")
+                f"fric {mu:.3f} {rng}")
         print(f"[units] {name:<12} {n:7,}  fric {fric:.2f}  E {p['E']:.3g}", flush=True)
     print(f"[units] seeded faults bonded at {WEAK_FACTOR:.2f} of host strength",
           flush=True)
@@ -448,6 +517,12 @@ def bond():
     the contacts it needs are there to be bonded.
     """
     cmd("model calm")
+    if WEDGE != "bonded":
+        print("[bond] frictional wedge: no parallel bonds installed. The "
+              "pack carries its weight through contact friction, and a "
+              "seeded fault is a low-friction band rather than weak "
+              "cement.", flush=True)
+        return 0
     cmd(f"contact method bond gap {BOND_GAP:.4f}")
     n, bonded = bond_census()
     print(f"[bond] gap {BOND_GAP:.1f} m = {BOND_GAP_FRAC:.2f} x r_min "
@@ -513,6 +588,7 @@ def apply_gravity():
               f"({100.0 * bonded / n if n else 0.0:.1f}%)", flush=True)
     print(f"[gravity] full g = ({gx:+.3f}, {gy:.3f}, {gz:.3f}) m/s2, tilted "
           f"{m.beta:.2f} deg with the decollement", flush=True)
+    snapshot("gravity_on")
 
 
 def settle():
@@ -525,6 +601,7 @@ def settle():
         + (f" cycles {SOLVE_CYCLES}" if SOLVE_CYCLES else ""))
     spent = it.cycle() - before
     census("after settling")
+    snapshot("settled")
     cmd("ball attribute displacement 0 0 0")           # zero the datum
     return spent
 
@@ -539,17 +616,25 @@ def report_settling(n_built, bonded_at_bond, cycles_spent):
     """
     n_now = it.ball.count()
     lost = n_built - n_now
-    n_contacts, bonded = bond_census()
-    broke = bonded_at_bond - bonded
+    n_contacts = count_contacts()
+    bonded, broke = 0, 0
+    if WEDGE == "bonded":
+        n_contacts, bonded = bond_census()
+        broke = bonded_at_bond - bonded
 
     a0, _, _ = taper.measure(ball_positions(), m.beta)
     target = taper.target_alpha()
 
     print("\n[settled] --------------------------------------------------",
           flush=True)
-    print(f"[settled] bonded contacts   {bonded:,} of {n_contacts:,} "
-          f"({100.0 * bonded / n_contacts if n_contacts else 0.0:.1f}%), "
-          f"{broke:,} broke under gravity", flush=True)
+    if WEDGE == "bonded":
+        print(f"[settled] bonded contacts   {bonded:,} of {n_contacts:,} "
+              f"({100.0 * bonded / n_contacts if n_contacts else 0.0:.1f}%), "
+              f"{broke:,} broke under gravity", flush=True)
+    else:
+        print(f"[settled] contacts          {n_contacts:,} "
+              f"(frictional wedge -- no bonds, so no bonded fraction to "
+              f"report)", flush=True)
     print(f"[settled] particles lost    {lost:,} of {n_built:,} "
           f"({100.0 * lost / n_built if n_built else 0.0:.1f}%)", flush=True)
     print(f"[settled] alpha_0           {a0:.3f} deg  "
@@ -596,6 +681,7 @@ def drive():
     print(f"[drive] {SHORTENING:.0f} m of convergence in {steps} steps", flush=True)
     cmd(f"model cycle {steps}")
     census("after convergence")
+    snapshot("converged")
 
 
 if __name__ == "__main__":

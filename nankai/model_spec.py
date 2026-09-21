@@ -235,7 +235,13 @@ class Model:
         """A jittered lattice inside the envelope, for checking the unit
         and weak-zone assignment without PFC. Not a DEM packing -- PFC's
         ball distribute makes the real one."""
-        rng = np.random.default_rng(seed)
+        # np.random.default_rng is numpy >= 1.17 and PFC 6 embeds 1.13.
+        # This module is imported INSIDE PFC by build_model, so every
+        # function in it has to survive there, not just the ones the
+        # DEM run happens to call today.
+        rng = (np.random.default_rng(seed)
+               if hasattr(np.random, "default_rng")
+               else np.random.RandomState(seed))
         step = 2 * self.r_mean
         xs = np.arange(self.x0 * KM, self.x1 * KM, step)
         zt = -self._d("seafloor", xs / KM) * KM

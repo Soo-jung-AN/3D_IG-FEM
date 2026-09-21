@@ -161,6 +161,18 @@ touching, which is why `it.contact.count()` reports far fewer contacts
 than `contact method bond` says it applied to. `pb_state` is 0
 unbonded, 1 broke in tension, 2 broke in shear, 3 bonded.
 
+**The Nankai wedge is FRICTIONAL, not bonded** (`NANKAI_WEDGE`, default
+`frictional`). A real prism stands in compression on friction, not on the
+tensile strength of its own cement, and the grid in
+`nankai/strength_gap_sweep.py` is the evidence: the bonding gap moves the
+bonded fraction (43% at 0.05 r_min, 62% at 0.40) and barely moves alpha_0
+at all, while strength moves everything — and it takes a x100 multiplier,
+pb_ten of 100 MPa in the outer prism, harder than granite, before the
+skeleton stops shattering. In the frictional wedge no parallel bonds are
+installed at all, an unbonded linearpbond contact being identical to the
+linear model, and a seeded fault is a band of LOW FRICTION
+(`WEAK_FRICTION`) rather than weak cement.
+
 **Read the bond strengths against rho*g*H, not against each other.**
 The Nankai wedge is 7,900 m thick, so the stress at its base is 209 MPa,
 and the strongest unit in `PROPERTIES` bonds at 10 MPa — 4.8% of it.
@@ -194,16 +206,36 @@ Verified against PFC 6.00 Release 008 on this machine:
 - `nankai/friction_sweep.py --run` — launches PFC per friction value and
   measures the result.
 
+**What alpha_0 now measures is the toe collapsing.** Stage by stage on
+the frictional wedge (`nankai/fig_stages_frictional.png`, written by
+`nankai/stage_figure.py` from the snapshots `NANKAI_SNAPSHOTS` drops):
+built −0.063, relaxed +0.298, gravity on +1.476, settled +4.077,
+converged +4.212. The landward 30–45 km sits on the digitised sea floor
+at every stage; the whole error is the trenchward 20 km, which sinks 1–2
+km. The toe is thin, so its confining stress and therefore its frictional
+resistance are small, while the landward component of the tilted gravity
+does not care how thick the wedge is. Two things the model does not have
+would hold it: sea-water buoyancy, and the convergence that in reality
+never stops. The settling stage switches convergence OFF and then asks
+the wedge to keep its shape, which is not a state a real prism is ever
+in.
+
 NOT verified, and this is now the real open question:
 
-- the wedge is still not in equilibrium, but the cause has moved from
-  the script to the properties. Bonding across a gap, boundaries three
-  particles thick and a ramped gravity took the particle loss from 92.5%
-  to 8.3% and the bonded fraction from ~0 to 63% at bonding — and
-  alpha_0 is still 4.6° off the section, because the bonds carry at most
-  4.8% of rho*g*H and shatter at a tenth of gravity. Raising the bond
-  strengths in `model_spec.PROPERTIES`, or dropping the bonded wedge for
-  a frictional one, is a modelling decision and has not been made.
+- the frictional wedge sheds its toe: alpha_0 ends +4.08° off the
+  section with 9.8% of particles lost, and the solve stops at its cycle
+  cap rather than reaching ratio-average 1e-4, so it is creeping. The
+  likely fixes are physical, not procedural — drive the conveyor during
+  settling instead of after it, and give the model the sea water it is
+  sitting in.
+- the density convention is unresolved. `PROPERTIES` calls its densities
+  bulk values, but PFC takes them as PARTICLE densities, so at the
+  measured porosity of 0.397 the pack weighs 60% of what the table says
+  (outer_prism 2100 -> 1267). That happens to land near the buoyant
+  weight of saturated sediment (2100 - 1025 = 1075), so the model may be
+  accidentally approximating a buoyancy it does not model. Downstream,
+  `vp_from_strain` reads the exported value as a bulk density, where the
+  same number is 66% too high.
 - `friction_sweep.report()` now refuses to name a calibrated mu_b until
   alpha_0 agrees across the swept values to `ALPHA0_TOLERANCE` (0.05°).
   On the last sweep it spread 1.672°. Do not quote a crossing until
